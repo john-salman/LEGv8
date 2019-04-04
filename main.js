@@ -46,15 +46,14 @@ class Main {
             C,
         };
         this.RFILE[32] = [];
-        let instructions = new Instructions(this.RFILE, this.flags);
+        this.main_obj = {current_line: this.current_line, MEM: this.MEM, flags: this.flags, RFILE: this.RFILE};
+        let instructions = new Instructions(this.main_obj);
     }
 }
 
 class Instructions {
-    constructor(_RFILE, _flags) {
-        this.RFILE = _RFILE;
-        this.flags = _flags;
-        this.current_line = 0;
+    constructor(_main_obj) {
+        this.main_obj = _main_obj;
 
         this.R_Format = {
             opcode, Rm, shamt, Rn, Rd
@@ -119,8 +118,23 @@ class Instructions {
         let Rd = this.R_Type['ADD']['ARR'][idx]['Rd'];
         let Rn = this.R_Type['ADD']['ARR'][idx]['Rn'];
         let Rm = this.R_Type['ADD']['ARR'][idx]['Rm'];
-        this.RFILE[Rd] = this.RFILE[Rn] + this.RFILE[Rm];
+        this.main_obj.RFILE[Rd] = this.main_obj.RFILE[Rn] + this.main_obj.RFILE[Rm];
     }
+
+    ADDI(idx) {
+        let Rd = this.R_Type['ADD']['ARR'][idx]['Rd'];
+        let Rn = this.R_Type['ADD']['ARR'][idx]['Rn'];
+        let imm = this.R_Type['ADD']['ARR'][idx]['immediate'];
+        this.main_obj.RFILE[Rd] = this.main_obj.RFILE[Rn] + imm;
+    }
+
+    SUB(idx) {
+        let Rd = this.R_Type['SUB']['ARR'][idx]['Rd'];
+        let Rn = this.R_Type['SUB']['ARR'][idx]['Rn'];
+        let Rm = this.R_Type['SUB']['ARR'][idx]['Rm'];
+        this.main_obj.RFILE[Rd] = this.main_obj.RFILE[Rn] - this.main_obj.RFILE[Rm];
+    }
+
 
 
 }
