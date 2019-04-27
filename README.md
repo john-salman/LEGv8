@@ -1,4 +1,4 @@
-We are developing this program to interpet user LEGv8 programs with an instruction subset. This program is intended 
+We are developing this program to interpret user LEGv8 programs with an instruction subset. This program is intended 
 as an educational tool so let us know if you want to add an instrcution. We are implementing the registers as 64 bit,
 and are working to make the behavior as similar to assembly language as possible. The end goal is to connect this as
 the backend of a public website, but for now we're building this as a command line utility.
