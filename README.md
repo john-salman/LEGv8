@@ -4,7 +4,9 @@ and are working to make the behavior as similar to assembly language as possible
 the backend of a public website, but for now we're building this as a command line utility.
 
 If you have questions, encountered errors, or want to contribute (you will have to wait until we submit this for a class),
-let us know at: jhnsalman@gmail.com. 
+let us know at: jhnsalman@gmail.com
+
+FAIR WARNING: It's still in an early stage, so expect lots of debug prints + formatting wierdness.
 
 To Run: python main.py
 
