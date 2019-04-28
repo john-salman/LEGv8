@@ -144,7 +144,8 @@ class Instructions:
         self.RFILE = [7, 5, -2, 6, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
         self.program = []
-
+        self.prog_idx = 0 # current line being loaded into program[]
+        self.labels = []
         # Place the name-value pairs in their appropriate spots as you go
         # NOTE: some opcodes may be incorrect depending on source material
         
@@ -190,6 +191,9 @@ class Instructions:
                 'ADDI': 1160,
                 "SUBI": 1672,
             },
+            'B-Format': {
+                'B': 160,
+            },
             'D-Format':{
                 'STUR': 1984,
                 'LDUR': 1986,
@@ -218,24 +222,88 @@ class Instructions:
         i = 0
         while(lineCount < len(lines)):
             line = lines[lineCount]
-            while(line[i] != " "):
+            while(i < len(line) and line[i] != " " and line[i] != ":"):
+                print len(line)
                 current += line[i]
                 i += 1
-
-            if (current in self.instr_def['I-Format']):
-                self.Process_I_Format(line, i, current)
-            elif (current in self.instr_def['R-Format']):
-                self.Process_R_Format(line, i, current)
-            elif (current in self.instr_def['D-Format']):
-                self.Process_D_Format(line, i, current)
+            if (current == ""):
+                i += 1 # do nothing, this is a blank line
             else:
-                print "Label detected"
+                print line
+                if (current in self.instr_def['I-Format']):
+                    self.Process_I_Format(line, i, current)
+                elif (current in self.instr_def['B-Format']):
+                    self.Process_B_Format(line, i, current)
+                elif (current in self.instr_def['D-Format']):
+                    self.Process_D_Format(line, i, current)
+                elif (current in self.instr_def['R-Format']):
+                    self.Process_R_Format(line, i, current)
+                else:
+                    self.Make_Label(current)
+                    i += 1
+                    while (i < len(line) and line[i] == " "): # get the space between the label and instruction
+                        i += 1
+                    if (i == len(line)):
+                        i += 1 # this does nothing, but prevents syntax error (i had issues with break/continue)
+                    else:
+                        current = "" 
+                        while (i < len(line) and line[i] != " "):
+                            print line[i]
+                            current += line[i]
+                            i += 1
+                        if (current in self.instr_def['I-Format']):
+                            self.Process_I_Format(line, i, current)
+                        elif (current in self.instr_def['B-Format']):
+                            self.Process_B_Format(line, i, current)
+                        elif (current in self.instr_def['D-Format']):
+                            self.Process_D_Format(line, i, current)
+                        elif (current in self.instr_def['R-Format']):
+                            self.Process_R_Format(line, i, current)
+                        else:
+                            print "Error: no instruction found in non-empty label line =>", line
+                        
             lineCount += 1
             current = ""
             i = 0
+        self.Resolve_Undef_Labels()
         return
 
+    ##################################################################################
+    # Function: Make_Label
+    # Parameters: the name of the label, and the line it was encountered on
+    # Description: This function creates an association between a label and the line
+    #              it was encountered on. This is so the program can interpret other
+    #              branching instructions.
+    ##################################################################################
+    def Make_Label(self, label):
+        print "Making label with:", label, self.prog_idx
+        self.labels.append({'label': label, 'line': self.prog_idx}) 
 
+    ##################################################################################
+    # Function: Resolve_Undef_Labels
+    # Parameters: none
+    # Description: This function searches for unresolved label instructions that may
+    #              have been processed before the label was defined.
+    ##################################################################################     
+    def Resolve_Undef_Labels(self):
+            i = 0
+            prog_len = len(self.program)
+            while (i < prog_len):
+                current = self.program[i]
+                if (current['name'] in self.instr_def['B-Format']
+                    and current['interpreted']['label_line'] == -1):
+
+                    j = 0
+                    while (j < len(self.labels)):
+                        if (self.labels[j]['label'] == current['interpreted']['label']):
+                            print "Fixing line: ", current, self.labels
+                            current['interpreted']['label_line'] = self.labels[j]['line']
+                            break
+                        j += 1
+
+                i += 1
+                
+    
     ##################################################################################
     # Function: Process_I_Format
     # Parameters: the line, index(may not be necessary if we trim the string in
@@ -250,7 +318,7 @@ class Instructions:
         if (line[i] == "X"): # Write register
             i += 1
         else:
-            print "Error: malformed instruction on line", self.current_line
+            print "Error: malformed instruction =>", line
             sys.exit()
                 
         while(line[i] != ","): # these loops append the digits into a temp variable
@@ -265,7 +333,7 @@ class Instructions:
         if (line[i] == "X"): # Rn
             i += 1
         else:
-            print "Error: malformed instruction on line", self.current_line
+            print "Error: malformed instruction =>", line
             sys.exit()
             
             
@@ -281,7 +349,7 @@ class Instructions:
         if (line[i] == "#"): #immediate value
             i += 1
         else:
-            print "Error: malformed instruction on line", self.current_line
+            print "Error: malformed instruction =>", line
             sys.exit() # we should explore a more graceful bomb out
             
         while(i < len(line)):
@@ -302,11 +370,68 @@ class Instructions:
     ##################################################################################
     def Make_I_Format(self, _name, _opcode, _imm, _rn, _rd):
         self.program.append({'name': _name, 'interpreted': {'opcode': int(_opcode), 'imm': int(_imm), 'Rn': int(_rn), 'Rd': int(_rd)}})
+        self.prog_idx += 1
         return
 
+    ##################################################################################
+    # Function: Process_B_Format
+    # Parameters: the line, index(may not be necessary if we trim the string in
+    #             parent function), and current (aka the instruction name)
+    # Description: This function parses the current line of the input file, seperating
+    #              the values into an object interpretation
+    ##################################################################################
+    def Process_B_Format(self, line, i, current):
+        instr = current # log the current as the instruction
+        current = ""
+        i += 1 # we are still on the instr 
+        while (i < len(line) and line[i] == ' '):
+            i += 1
+            
+        if (i == len(line)):
+            print "Error: malformed instruction =>", line
+            sys.exit()
+        else:    
+            while(i < len(line) and line[i].isalpha()): # these loops append the digits into a temp variable
+                current += line[i]
+                i += 1
+
+            label = current
+            label_line = self.Find_Label(label)
+            opcode = self.instr_def['B-Format'][instr]
+            self.Make_B_Format(instr, opcode, label, label_line) # insert new object in instruction array with line serving as index
+        return
+
+    ##################################################################################
+    # Function: Make_B_Format
+    # Parameters: the parsed values provided by the parent function
+    # Description: This function sorts the parameters and molds them into a more usable
+    #              object format. This format makes actual instruction implementations
+    #              more trivial.
+    ##################################################################################
+    def Make_B_Format(self, _name, _opcode, _label, _label_line):
+        self.program.append({'name': _name, 'interpreted': {'opcode': int(_opcode), 'label': _label, 'label_line': _label_line}})
+        self.prog_idx += 1
+        return
+
+    ##################################################################################
+    # Function: Find_Label
+    # Parameters: the string representing the label arguement to a branch instr
+    # Description: This function finds the line associated with a label. If a label is
+    #              not found the function returns one to make this instruction to be
+    #              defined at the end.
+    ##################################################################################   
+    def Find_Label(self, label):
+        i = 0
+        while (i < len(self.labels)):
+            if (self.labels[i]['label'] == label):
+                return self.labels[i]['line']
+            i += 1
+        return -1
+    
+    
     ##################################################################################               
     # Function: Process_D_Format                                                                                                              
-    # Parameters: the line, index(may not be necessary if we trim the string in                                                                                             
+    # Parameters: the line, index(may not be necessary if we trim the string in
     #             parent function), and current (aka the instruction name)           
     # Description: This function parses the current line of the input file, seperating
     #              the values into an object interpretation
@@ -319,7 +444,7 @@ class Instructions:
         if (line[i] == "X"): # Destination register                                                                                                            
             i += 1
         else:
-            print "Error: malformed instruction on line", self.current_line
+            print "Error: malformed instruction =>", line
             sys.exit()
 
         while(line[i] != ","): # these loops append the digits into a temp variable                                                                                                                                                   
@@ -334,13 +459,13 @@ class Instructions:
         if (line[i] == "["): # Start of addressing space
             i += 1
         else:
-            print "Error: malformed instruction on line", self.current_line
+            print "Error: malformed instruction =>", line
             sys.exit()
             
         if (line[i] == "X"): # Rn
             i += 1
         else:
-            print("Error: malformed instruction")
+            print "Error: malformed instruction =>", line
             sys.exit()
 
 
@@ -356,7 +481,7 @@ class Instructions:
         if (line[i] == "#"): #addressing value
             i += 1
         else:
-            print "Error: malformed instruction on line", self.current_line
+            print "Error: malformed instruction =>", line
             sys.exit() # we should explore a more graceful bomb out
             
         while(i < len(line) and line[i] != ']' and line[i] != ' '):
@@ -366,7 +491,7 @@ class Instructions:
         if (line[i] == "]"): # Rn                                                                                                                                             
 	    i += 1
         else:
-            print "Error: malformed instruction on line", self.current_line
+            print "Error: malformed instruction =>", line
             sys.exit()
         address = current
         opcode = self.instr_def['D-Format'][instr]
@@ -382,6 +507,7 @@ class Instructions:
     ##################################################################################                                                                                                              
     def Make_D_Format(self, _name, _opcode, _addr, _rn, _rt):
         self.program.append({'name': _name, 'interpreted': {'opcode': int(_opcode), 'address': int(_addr), 'Rn': int(_rn), 'Rt': int(_rt)}})
+        self.prog_idx += 1
         return
 
 
@@ -399,7 +525,7 @@ class Instructions:
         if (line[i] == "X"):
             i += 1
         else:
-            print "Error: malformed instruction on line", self.current_line
+            print "Error: malformed instruction =>", line
             sys.exit()
 
         while(line[i] != ","):
@@ -414,7 +540,7 @@ class Instructions:
         if (line[i] == "X"):
             i += 1
         else:
-            print "Error: malformed instruction on line", self.current_line
+            print "Error: malformed instruction =>", line
             sys.exit()
 
 
@@ -430,7 +556,7 @@ class Instructions:
         if (line[i] == "X"):
             i += 1
         else:
-            print "Error: malformed instruction on line", self.current_line
+            print "Error: malformed instruction =>", line
             sys.exit()
 
         while(i < len(line)):
@@ -451,6 +577,7 @@ class Instructions:
     ################################################################################## 
     def Make_R_Format(self, _name, _opcode, _rm, _rn, _rd):
         self.program.append({'name': _name, 'interpreted': {'opcode': int(_opcode), 'Rm': int(_rm), 'Rn': int(_rn), 'Rd': int(_rd)}})   
+        self.prog_idx += 1
         return
 
     ##################################################################################
@@ -475,7 +602,8 @@ class Instructions:
             print "Evaluating interpreted expression:", self.RFILE[Rn], "+", immediate
             self.RFILE[Rd] = self.RFILE[Rn] + immediate
             print "Value of Write Register after execution:", self.RFILE[Rd]
-
+            self.current_line += 1
+            
         elif (instr_name == 'SUBI'):
             Rd = self.program[self.current_line]['interpreted']['Rd']
             Rn = self.program[self.current_line]['interpreted']['Rn']
@@ -484,6 +612,16 @@ class Instructions:
             print "Evaluating interpreted expression:", self.RFILE[Rn], "-",	immediate
             self.RFILE[Rd] = self.RFILE[Rn] + immediate
             print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.current_line += 1
+            
+        #B-Format
+        elif (instr_name == 'B'):
+            label = self.program[self.current_line]['interpreted']['label']
+            label_line = self.program[self.current_line]['interpreted']['label_line']
+            print "Jumping to label:", label
+            self.current_line = label_line
+            print "Now on line:", self.current_line
+            print "The instruction is now:", self.str_current()
             
         #D-Format
         elif (instr_name == 'LDUR'):
@@ -492,13 +630,15 @@ class Instructions:
             address = self.program[self.current_line]['interpreted']['address']
             mem_location = self.RFILE[Rn] + address
             self.RFILE[Rt] = self.MEM[mem_location]
-
+            self.current_line += 1
+            
         elif (instr_name == 'STUR'):
             Rt = self.program[self.current_line]['interpreted']['Rt']
             Rn = self.program[self.current_line]['interpreted']['Rn']
             address = self.program[self.current_line]['interpreted']['address']
             mem_location = self.RFILE[Rn] + address
             self.MEM[mem_location] = self.RFILE[Rt]
+            self.current_line += 1
             
         # R-Format
         elif (instr_name == 'ADD'):
@@ -509,7 +649,8 @@ class Instructions:
             print "Evaluating interpreted expression:", self.RFILE[Rn], "+", self.RFILE[Rm]
             self.RFILE[Rd] = self.RFILE[Rn] + self.RFILE[Rm]
             print "Value of Write Register after execution:", self.RFILE[Rd]
-
+            self.current_line += 1
+            
         elif (instr_name == 'SUB'):
             Rd = self.program[self.current_line]['interpreted']['Rd']
             Rn = self.program[self.current_line]['interpreted']['Rn']
@@ -518,9 +659,9 @@ class Instructions:
             print "Evaluating interpreted expression:", self.RFILE[Rn], "-", self.RFILE[Rm]
             self.RFILE[Rd] = self.RFILE[Rn] - self.RFILE[Rm]
             print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.current_line += 1
 
 
-        self.current_line += 1
         if (self.current_line < len(self.program)):
             return self.str_current()# We kinda do nothing with this rn, mainly used to determine if we reached the end of the program
         else:
@@ -543,6 +684,10 @@ class Instructions:
             imm = current_instr['interpreted']['imm']
             output = name + " X" + str(Rd) + ", X" + str(Rn) + ", #" + str(imm)
 
+        elif (name in self.instr_def['B-Format']):
+            label = current_instr['interpreted']['label']
+            output = name + ' ' + label
+            
         elif (name in self.instr_def['D-Format']):
             Rt = current_instr['interpreted']['Rt']
             Rn = current_instr['interpreted']['Rn']
@@ -555,7 +700,7 @@ class Instructions:
             Rn = current_instr['interpreted']['Rn']
 	    Rm = current_instr['interpreted']['Rm']
             output = name + " X" + str(Rd) + ", X" + str(Rn) + ", X" + str(Rm)
-
+            
         return output
 
 
@@ -578,6 +723,14 @@ class Instructions:
             print "Write Register: X" + str(Rd), " ## Value in Write Register: ", self.RFILE[Rd]
             print "Register 1: X" + str(Rn), " ## Value in Register 1: ", self.RFILE[Rn]
             print "Immediate value: ", imm
+
+        elif (name in self.instr_def['B-Format']):
+            label = current_instr['interpreted']['label']
+            label_line = current_instr['interpreted']['label_line']
+            print "Instruction: ", name, label
+            print "Instruction OpCode: ", current_instr['interpreted']['opcode']
+            print "Address of label: ", label_line
+
 
         elif (name in self.instr_def['D-Format']):
             Rt = current_instr['interpreted']['Rt']
