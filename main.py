@@ -63,7 +63,10 @@ class Control:
 
             elif (command[0:1] == 'p' and len(command) > 1 and command[1:2] != 'r'):
                 self.instructions.print_specific(command)
-
+            elif (command == 'm' or command == 'memory'):
+                self.instructions.printMem()
+            elif (command == 'r' or command =='register'):
+                self.instructions.printReg()
             elif (command == 'h' or command == 'help'):
                 print("This program supports the following arguements:                                               ")
                 print("                                                                                              ")
@@ -87,6 +90,10 @@ class Control:
                 print("                                                                                              ")
                 print("                              New Line: CBZ X3, LABEL                                         ")
                 print("                                                                                              ")
+                print("    r(egister)  - Print all of the register file                                             ")
+                print("                                                                                              ")
+                print("    m(emory)    - Print all of the assigned memory                                           ")
+                print("                                                                                              ")
                 print("    exit        - Is used to exit the current instance of this program.                       ")
                 print("                                                                                              ")
                 print("    decimal     - Is used to set print outputs to decimal.                                    ")
@@ -103,6 +110,8 @@ class Control:
                 
             else:
                 print("Command not recognized, please enter 'help' for a full list of commands.")
+        self.instructions.printMem()
+        self.instructions.printReg()
         print "User Program complete, exiting..."
         print "Goodbye!"
         return
@@ -350,7 +359,7 @@ class Instructions:
 
         rn_num = current
         current = ""
-	i += 1 # get off comma                                                                                                                                                                            
+	i += 1 # get off comma
         i += 1 # get off space
 
         if (line[i] == "#"): #addressing value
@@ -599,9 +608,21 @@ class Instructions:
             print "Register 1: X" + str(Rn), " ## Value in Register 1: ", self.RFILE[Rn]
             print "Register 2: X" + str(Rm), " ## Value in Register 2: ", self.RFILE[Rm]
 
+    def printMem(self):
+        k = len(self.MEM)
+        print "Mem", " ", "Val"
+        for i in range(k):
+            print i, " ", " ", self.MEM[i]
+    def printReg(self):
+        k = len(self.RFILE)
+        print "Reg", " ", "Val"
+        for i in range(k):
+            print "X"+str(i), " ", " ", self.RFILE[i]
+
+
 
 def digit_test(value):
-    digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+    digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'done']
     if (value[0] != '+' and value[0] != '-' and (not value[0] in digits)):
         return False
     i = 1
