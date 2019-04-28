@@ -1,5 +1,5 @@
 LDUR X7, [X31, #0]
 ADDI X1, X0, #12
-SUBI X1, X1, X7
+SUBI X1, X1, #-3
 ADD X2, X1, X4
 STUR X14, [X31, #0]
