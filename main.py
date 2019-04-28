@@ -49,7 +49,6 @@ class Control:
     def step(self):
         print("Please enter a command at the prompt below (enter 'h' or 'help' for help)" )
         command = ""
-        print self.instructions.program
         _next = self.instructions.str_current()
         while(_next != 'END'):
             print " "
@@ -232,13 +231,11 @@ class Instructions:
         while(lineCount < len(lines)):
             line = lines[lineCount]
             while(i < len(line) and line[i] != " " and line[i] != ":"):
-                print len(line)
                 current += line[i]
                 i += 1
-            if (current == ""):
+            if (current == "" or current == "\n"):
                 i += 1 # do nothing, this is a blank line
             else:
-                print line
                 if (current in self.instr_def['I-Format']):
                     self.Process_I_Format(line, i, current)
                 elif (current in self.instr_def['B-Format']):
@@ -257,7 +254,6 @@ class Instructions:
                     else:
                         current = "" 
                         while (i < len(line) and line[i] != " "):
-                            print line[i]
                             current += line[i]
                             i += 1
                         if (current in self.instr_def['I-Format']):
@@ -285,7 +281,6 @@ class Instructions:
     #              branching instructions.
     ##################################################################################
     def Make_Label(self, label):
-        print "Making label with:", label, self.prog_idx
         self.labels.append({'label': label, 'line': self.prog_idx}) 
 
     ##################################################################################
@@ -305,7 +300,6 @@ class Instructions:
                     j = 0
                     while (j < len(self.labels)):
                         if (self.labels[j]['label'] == current['interpreted']['label']):
-                            print "Fixing line: ", current, self.labels
                             current['interpreted']['label_line'] = self.labels[j]['line']
                             break
                         j += 1
@@ -600,6 +594,7 @@ class Instructions:
         current_instr = self.program[self.current_line]
         instr_name = current_instr['name']
 
+        print " " # seperator
         print "Executing Line: " + self.str_current()
         
         # I-Format
@@ -638,6 +633,7 @@ class Instructions:
             Rn = self.program[self.current_line]['interpreted']['Rn']
             address = self.program[self.current_line]['interpreted']['address']
             mem_location = self.RFILE[Rn] + address
+            print "Value:", self.MEM[mem_location], "loaded into register: X" + str(Rt)
             self.RFILE[Rt] = self.MEM[mem_location]
             self.current_line += 1
             
@@ -646,6 +642,7 @@ class Instructions:
             Rn = self.program[self.current_line]['interpreted']['Rn']
             address = self.program[self.current_line]['interpreted']['address']
             mem_location = self.RFILE[Rn] + address
+            print "Value:", self.RFILE[Rt], "loaded into memory at location:", mem_location
             self.MEM[mem_location] = self.RFILE[Rt]
             self.current_line += 1
             
@@ -775,7 +772,7 @@ class Instructions:
 
 
 def digit_test(value):
-    digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'done']
+    digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',]
     if (value[0] != '+' and value[0] != '-' and (not value[0] in digits)):
         return False
     i = 1
@@ -800,7 +797,7 @@ def main():
         if (digit_test(value)):
             memory.append(int(value))
             mem_idx += 1
-        else:
+        elif (value != 'd' and value != 'done'):
             print "Error: non digit value entered, please enter numerical values only"
             
     controller = Control(fileName, memory)
