@@ -12,8 +12,8 @@ import sys
 
 
 ###################################TO DO############################################
-#          - parse and input B-Format, CB-Format
-#          - take in program as input file, take in user-specified memory as input file (or command line input)
+#          - parse and input CB-Format
+#          - take in user-specified memory as input file
 #          - continue to implement executions of all instructions
 #          - handle overflow errors as interpreted events
 #          - write logic to print specific registers
@@ -149,6 +149,8 @@ class Instructions:
             'V': 0,
             'C': 0,
         }
+
+        self.branch_args = ['EQ', 'NE', 'LT', 'LE', 'GT', 'GE'] 
         self.RFILE = [7, 5, -2, 6, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
         self.program = []
@@ -227,19 +229,27 @@ class Instructions:
             lines = file.readlines()
         lineCount = 0
         current = ""
+        branch_arg = ""
         i = 0
         while(lineCount < len(lines)):
             line = lines[lineCount]
-            while(i < len(line) and line[i] != " " and line[i] != ":"):
+            while(i < len(line) and line[i] != " " and line[i] != ":" and line[i] != "."):
                 current += line[i]
                 i += 1
             if (current == "" or current == "\n"):
                 i += 1 # do nothing, this is a blank line
             else:
+                if (line[i] == "."):
+                    i += 1
+                    branch_arg += line[i:i+2]
+                    if (not (branch_arg in self.branch_args)):
+                        print "Error: Invalid branch conditional =>", line
+                        sys.exit(1)
+                    i += 2
                 if (current in self.instr_def['I-Format']):
                     self.Process_I_Format(line, i, current)
                 elif (current in self.instr_def['B-Format']):
-                    self.Process_B_Format(line, i, current)
+                    self.Process_B_Format(line, i, current, branch_arg)
                 elif (current in self.instr_def['D-Format']):
                     self.Process_D_Format(line, i, current)
                 elif (current in self.instr_def['R-Format']):
@@ -259,7 +269,7 @@ class Instructions:
                         if (current in self.instr_def['I-Format']):
                             self.Process_I_Format(line, i, current)
                         elif (current in self.instr_def['B-Format']):
-                            self.Process_B_Format(line, i, current)
+                            self.Process_B_Format(line, i, current, branch_arg)
                         elif (current in self.instr_def['D-Format']):
                             self.Process_D_Format(line, i, current)
                         elif (current in self.instr_def['R-Format']):
@@ -383,7 +393,7 @@ class Instructions:
     # Description: This function parses the current line of the input file, seperating
     #              the values into an object interpretation
     ##################################################################################
-    def Process_B_Format(self, line, i, current):
+    def Process_B_Format(self, line, i, current, branch_arg):
         instr = current # log the current as the instruction
         current = ""
         i += 1 # we are still on the instr 
@@ -401,7 +411,7 @@ class Instructions:
             label = current
             label_line = self.Find_Label(label)
             opcode = self.instr_def['B-Format'][instr]
-            self.Make_B_Format(instr, opcode, label, label_line) # insert new object in instruction array with line serving as index
+            self.Make_B_Format(instr, opcode, label, label_line, branch_arg) # insert new object in instruction array with line serving as index
         return
 
     ##################################################################################
@@ -411,8 +421,8 @@ class Instructions:
     #              object format. This format makes actual instruction implementations
     #              more trivial.
     ##################################################################################
-    def Make_B_Format(self, _name, _opcode, _label, _label_line):
-        self.program.append({'name': _name, 'interpreted': {'opcode': int(_opcode), 'label': _label, 'label_line': _label_line}})
+    def Make_B_Format(self, _name, _opcode, _label, _label_line, _branch_arg):
+        self.program.append({'name': _name, 'interpreted': {'opcode': int(_opcode), 'label': _label, 'label_line': _label_line, 'branch_arg': _branch_arg}})
         self.prog_idx += 1
         return
 
@@ -622,6 +632,9 @@ class Instructions:
         elif (instr_name == 'B'):
             label = self.program[self.current_line]['interpreted']['label']
             label_line = self.program[self.current_line]['interpreted']['label_line']
+            arg = self.program[self.current_line]['interpreted']['branch_arg']
+            if (arg != ""):
+                print "Branching with condition:", arg
             print "Jumping to label:", label
             self.current_line = label_line
             print "Now on line:", self.current_line
@@ -692,7 +705,10 @@ class Instructions:
 
         elif (name in self.instr_def['B-Format']):
             label = current_instr['interpreted']['label']
-            output = name + ' ' + label
+            arg = current_instr['interpreted']['branch_arg']
+            if (arg != ""):
+                arg = "." + arg
+            output = name + arg + ' ' + label
             
         elif (name in self.instr_def['D-Format']):
             Rt = current_instr['interpreted']['Rt']
@@ -733,7 +749,12 @@ class Instructions:
         elif (name in self.instr_def['B-Format']):
             label = current_instr['interpreted']['label']
             label_line = current_instr['interpreted']['label_line']
-            print "Instruction: ", name, label
+            arg = current_instr['interpreted']['branch_arg']
+            if (arg != ""):
+                print "Instruction: ", name + "." + arg, label
+                print "Condition on branch:", arg
+            else:
+                print "Instruction:", name, label
             print "Instruction OpCode: ", current_instr['interpreted']['opcode']
             print "Address of label: ", label_line
 
@@ -763,6 +784,7 @@ class Instructions:
         print "Mem", " ", "Val"
         for i in range(k):
             print i, " ", " ", self.MEM[i]
+
     def printReg(self):
         k = len(self.RFILE)
         print "Reg", " ", "Val"
