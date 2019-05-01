@@ -23,8 +23,8 @@ import sys
 
 
 
-##################################################################################                                                                                                                        
-# Class: Control                                                                                                                                                                                            
+##################################################################################
+# Class: Control                                                                                        
 # Description: This class is used as an interface to the Instructions class
 #              and is used to navigate the application
 ##################################################################################
@@ -89,9 +89,9 @@ class Control:
                 print("                                                                                              ")
                 print("                              New Line: CBZ X3, LABEL                                         ")
                 print("                                                                                              ")
-                print("    r(egister)  - Print all of the register file                                             ")
+                print("    r(egister)  - Print all of the register file                                              ")
                 print("                                                                                              ")
-                print("    m(emory)    - Print all of the assigned memory                                           ")
+                print("    m(emory)    - Print all of the assigned memory                                            ")
                 print("                                                                                              ")
                 print("    exit        - Is used to exit the current instance of this program.                       ")
                 print("                                                                                              ")
@@ -156,36 +156,27 @@ class Instructions:
         self.program = []
         self.prog_idx = 0 # current line being loaded into program[]
         self.labels = []
+
+        
         # Place the name-value pairs in their appropriate spots as you go
-        # NOTE: some opcodes may be incorrect depending on source material
+        # NOTE: some opcodes may be incorrect/missing depending on source material
         
         #I-Format
-        #"ORRI": 1424,                                                             
-        #"EORI": 1680,
         #"ADDIS": 1936,                                                             
         #"SUBIS": 1928,                                                                     
-        #"ANDI": 1168,                                                                     
         #"ANDIS": ,                                                                     
 
         # B-Format                                                       
-        #"B": 160,                                                                      
         #"BL": 1184,
         
         # D-Format
-        #"STUR": 1984,     
-        # LDUR
         #"STURH": 448,                                                                      
         #"LDURH": 450,      
 
         # R-Format
-        #AND
         #"ANDS": 1104,                                                                     
         #"ADDS": 1368,                                                                     
         #"SUBS": 1880,                                                                     
-        #"ORR": 1360,                                                                     
-        #"EOR": 1616,                                                                     
-        #"LSR": 1690,                                                                     
-        #"LSL": 1691,                                                                     
         #"BR": 1712,
         
         # CB-Format
@@ -198,19 +189,27 @@ class Instructions:
         # 3. Labels can be determined by their exclusion from this set
         self.instr_def = {
             'I-Format': {
-                'ADDI': 1160,
+                "ADDI": 1160,
                 "SUBI": 1672,
+                "ANDI": 1168,
+                "ORRI": 1424,
+                "EORI": 1680,
             },
             'B-Format': {
-                'B': 160,
+                "B": 160,
             },
             'D-Format':{
-                'STUR': 1984,
-                'LDUR': 1986,
+                "STUR": 1984,
+                "LDUR": 1986,
             },
             'R-Format': {
-                'ADD': 1112,
+                "ADD": 1112,
                 "SUB": 1624,
+                "AND": 1104,
+                "ORR": 1360,
+                "EOR": 1616,
+                "LSR": 1690,
+                "LSL": 1691,
             }
         }
         self.Process_File(fileName)
@@ -606,6 +605,8 @@ class Instructions:
 
         print " " # seperator
         print "Executing Line: " + self.str_current()
+
+        # NOTE: if the instruction is branching, make sure to increment the current_line variable
         
         # I-Format
         if (instr_name == 'ADDI'):
@@ -627,7 +628,38 @@ class Instructions:
             self.RFILE[Rd] = self.RFILE[Rn] + immediate
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
-            
+
+        elif (instr_name == 'ANDI'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            immediate = self.program[self.current_line]['interpreted']['imm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], "&",    immediate
+            self.RFILE[Rd] = self.RFILE[Rn] & immediate
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.current_line += 1
+
+        elif (instr_name == 'ORRI'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            immediate = self.program[self.current_line]['interpreted']['imm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], "|",    immediate
+            self.RFILE[Rd] = self.RFILE[Rn] | immediate
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.current_line += 1
+
+        elif (instr_name == 'EORI'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            immediate = self.program[self.current_line]['interpreted']['imm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], "^",    immediate
+            self.RFILE[Rd] = self.RFILE[Rn] ^ immediate
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.current_line += 1
+
+        
         #B-Format
         elif (instr_name == 'B'):
             label = self.program[self.current_line]['interpreted']['label']
@@ -680,7 +712,58 @@ class Instructions:
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
+        elif (instr_name == 'AND'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            Rm = self.program[self.current_line]['interpreted']['Rm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], "&", self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] & self.RFILE[Rm]
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.current_line += 1
 
+        elif (instr_name == 'ORR'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            Rm = self.program[self.current_line]['interpreted']['Rm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], "|", self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] | self.RFILE[Rm]
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.current_line += 1
+
+        elif (instr_name == 'EOR'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            Rm = self.program[self.current_line]['interpreted']['Rm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], "^", self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] ^ self.RFILE[Rm]
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.current_line += 1
+
+        elif (instr_name == 'LSR'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            Rm = self.program[self.current_line]['interpreted']['Rm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], ">>", self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] >> self.RFILE[Rm]
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.current_line += 1
+
+        elif (instr_name == 'LSL'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            Rm = self.program[self.current_line]['interpreted']['Rm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], "<<", self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] << self.RFILE[Rm]
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.current_line += 1
+
+            
+            
         if (self.current_line < len(self.program)):
             return self.str_current()# We kinda do nothing with this rn, mainly used to determine if we reached the end of the program
         else:
