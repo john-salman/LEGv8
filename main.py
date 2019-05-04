@@ -162,8 +162,6 @@ class Instructions:
         # NOTE: some opcodes may be incorrect/missing depending on source material
         
         #I-Format
-        #"ADDIS": 1936,                                                             
-        #"SUBIS": 1928,                                                                     
         #"ANDIS": ,                                                                     
 
         # B-Format                                                       
@@ -174,15 +172,8 @@ class Instructions:
         #"LDURH": 450,      
 
         # R-Format
-        #"ANDS": 1104,                                                                     
-        #"ADDS": 1368,                                                                     
-        #"SUBS": 1880,                                                                     
-        #"BR": 1712,
+         #"BR": 1712,
         
-        # CB-Format
-        #"CBZ": 1440,                                                                     
-        #"CBNZ": 1448,      
-
         # This object has three primary purposes:
         # 1. Is used to determine the format type of an instruction
         # 2. Obtain opcode value of instruction
@@ -190,7 +181,9 @@ class Instructions:
         self.instr_def = {
             'I-Format': {
                 "ADDI": 1160,
+                "ADDIS": 1936,
                 "SUBI": 1672,
+                "SUBIS": 1928,
                 "ANDI": 1168,
                 "ORRI": 1424,
                 "EORI": 1680,
@@ -201,6 +194,9 @@ class Instructions:
             'D-Format':{
                 "STUR": 1984,
                 "LDUR": 1986,
+                "ANDS": 1104,
+                "ADDS": 1368,
+                "SUBS": 1880,
             },
             'R-Format': {
                 "ADD": 1112,
@@ -210,6 +206,10 @@ class Instructions:
                 "EOR": 1616,
                 "LSR": 1690,
                 "LSL": 1691,
+            },
+            'CB-Format': {
+                "CBZ": 1440,
+                "CBNZ": 1448,
             }
         }
         self.Process_File(fileName)
@@ -235,9 +235,7 @@ class Instructions:
             while(i < len(line) and line[i] != " " and line[i] != ":" and line[i] != "."):
                 current += line[i]
                 i += 1
-            if (current == "" or current == "\n"):
-                i += 1 # do nothing, this is a blank line
-            else:
+            if (current != "" and current != "\n"):
                 if (line[i] == "."):
                     i += 1
                     branch_arg += line[i:i+2]
@@ -253,15 +251,15 @@ class Instructions:
                     self.Process_D_Format(line, i, current)
                 elif (current in self.instr_def['R-Format']):
                     self.Process_R_Format(line, i, current)
+                elif (current in self.instr_def['CB-Format']):
+                    self.Process_CB_Format(line, i, current)
                 else:
                     self.Make_Label(current)
                     i += 1
-                    while (i < len(line) and line[i] == " "): # get the space between the label and instruction
+                    while (i < len(line) and line[i] == " "): # get the space between the label and instruction  
                         i += 1
-                    if (i == len(line)):
-                        i += 1 # this does nothing, but prevents syntax error (i had issues with break/continue)
-                    else:
-                        current = "" 
+                    if (i != len(line)):
+                        current = ""
                         while (i < len(line) and line[i] != " "):
                             current += line[i]
                             i += 1
@@ -273,9 +271,11 @@ class Instructions:
                             self.Process_D_Format(line, i, current)
                         elif (current in self.instr_def['R-Format']):
                             self.Process_R_Format(line, i, current)
+                        elif (current in self.instr_def['CB-Format']):
+                            self.Process_CB_Format(line, i, current)
                         else:
                             print "Error: no instruction found in non-empty label line =>", line
-                        
+
             lineCount += 1
             current = ""
             i = 0
@@ -592,6 +592,62 @@ class Instructions:
         self.prog_idx += 1
         return
 
+    ##################################################################################   
+    # Function: Process_CB_Format                         
+    # Parameters: the line, index(may not be necessary if we trim the string in                         
+    #             parent function), and current (aka the instruction name) 
+    # Description: This function parses the current line of the input file, seperating                 
+    #              the values into an object interpretation                 
+    ##################################################################################                                 
+    def Process_CB_Format(self, line, i, current):
+        instr = current # log the current as the instruction                                    
+        current = ""
+        i += 1 # we are still on the instr                                                             
+        while (i < len(line) and line[i] == ' '):
+            i += 1
+
+        if (line[i] == "X"):
+            i += 1
+        else:
+            print "Error: malformed instruction =>", line
+            sys.exit()
+
+        while (line[i] != ","):
+            current += line[i]
+            i += 1
+
+        rt_num = current
+        current = ""
+
+        while (line[i] == " "):
+            i += 1
+        
+        if (i == len(line)):
+            print "Error: malformed instruction =>", line
+            sys.exit()
+        else:
+            while(i < len(line) and line[i].isalpha()): # these loops append the digits into a temp variable                          
+                current += line[i]
+                i += 1
+
+            label = current
+            label_line = self.Find_Label(label)
+            opcode = self.instr_def['CB-Format'][instr]
+            self.Make_CB_Format(instr, opcode, rt_num, label, label_line) # insert new object in instruction array with line serving as index              
+        return
+
+    ##################################################################################                        
+    # Function: Make_CB_Format                                                                                
+    # Parameters: the parsed values provided by the parent function                                      
+    # Description: This function sorts the parameters and molds them into a more usable        
+    #              object format. This format makes actual instruction implementations
+    #              more trivial.                                                                                                  
+    ##################################################################################
+    def Make_CB_Format(self, _name, _opcode, _rt, _label, _label_line, _branch_arg):
+        self.program.append({'name': _name, 'interpreted': {'opcode': int(_opcode), 'Rt': int(_rt), 'label': _label, 'label_line': _label_line}})
+        self.prog_idx += 1
+        return
+    
     ##################################################################################
     # Function: execute
     # Parameters: none
@@ -618,6 +674,18 @@ class Instructions:
             self.RFILE[Rd] = self.RFILE[Rn] + immediate
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
+
+        if (instr_name == 'ADDIS'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            immediate = self.program[self.current_line]['interpreted']['imm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], "+", immediate
+            self.RFILE[Rd] = self.RFILE[Rn] + immediate
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.set_flags(self.RFILE[Rd])
+            print "Flags set by intruction:", self.flags
+            self.current_line += 1
             
         elif (instr_name == 'SUBI'):
             Rd = self.program[self.current_line]['interpreted']['Rd']
@@ -629,6 +697,18 @@ class Instructions:
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
+        elif (instr_name == 'SUBIS'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            immediate = self.program[self.current_line]['interpreted']['imm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], "-",    immediate
+            self.RFILE[Rd] = self.RFILE[Rn] + immediate
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.set_flags(self.RFILE[Rd])
+            print "Flags set by intruction:", self.flags
+            self.current_line += 1
+            
         elif (instr_name == 'ANDI'):
             Rd = self.program[self.current_line]['interpreted']['Rd']
             Rn = self.program[self.current_line]['interpreted']['Rn']
@@ -667,10 +747,19 @@ class Instructions:
             arg = self.program[self.current_line]['interpreted']['branch_arg']
             if (arg != ""):
                 print "Branching with condition:", arg
-            print "Jumping to label:", label
-            self.current_line = label_line
+                if (self.test_conditions()):
+                    print "Jumping to label:", label
+                    self.current_line = label_line
+                else:
+                    print "Branch Condition not met"
+                    self.current_line += 1
+            else:
+                print "Jumping to label:", label
+                self.current_line = label_line
             print "Now on line:", self.current_line
-            print "The instruction is now:", self.str_current()
+            if (self.current_line < len(self.program)):
+                print "The instruction is now:", self.str_current()
+            self.unset_flags()
             
         #D-Format
         elif (instr_name == 'LDUR'):
@@ -701,6 +790,18 @@ class Instructions:
             self.RFILE[Rd] = self.RFILE[Rn] + self.RFILE[Rm]
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
+
+        elif (instr_name == 'ADDS'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            Rm = self.program[self.current_line]['interpreted']['Rm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], "+", self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] + self.RFILE[Rm]
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.set_flags(self.RFILE[Rd])
+            print "Flags set by intruction:", self.flags
+            self.current_line += 1
             
         elif (instr_name == 'SUB'):
             Rd = self.program[self.current_line]['interpreted']['Rd']
@@ -712,6 +813,18 @@ class Instructions:
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
+        elif (instr_name == 'SUBS'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            Rm = self.program[self.current_line]['interpreted']['Rm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], "-", self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] - self.RFILE[Rm]
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.set_flags(self.RFILE[Rd])
+            print "Flags set by intruction:", self.flags
+            self.current_line += 1
+            
         elif (instr_name == 'AND'):
             Rd = self.program[self.current_line]['interpreted']['Rd']
             Rn = self.program[self.current_line]['interpreted']['Rn']
@@ -722,6 +835,18 @@ class Instructions:
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
+        elif (instr_name == 'ANDS'):
+            Rd = self.program[self.current_line]['interpreted']['Rd']
+            Rn = self.program[self.current_line]['interpreted']['Rn']
+            Rm = self.program[self.current_line]['interpreted']['Rm']
+            print "Value of Write Register before execution:", self.RFILE[Rd]
+            print "Evaluating interpreted expression:", self.RFILE[Rn], "&", self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] & self.RFILE[Rm]
+            print "Value of Write Register after execution:", self.RFILE[Rd]
+            self.set_flags(self.RFILE[Rd])
+            print "Flags set by intruction:", self.flags
+            self.current_line += 1
+            
         elif (instr_name == 'ORR'):
             Rd = self.program[self.current_line]['interpreted']['Rd']
             Rn = self.program[self.current_line]['interpreted']['Rn']
@@ -762,13 +887,92 @@ class Instructions:
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
-            
+        # CB-Format
+        elif (instr_name == 'CBZ'):
+            label = self.program[self.current_line]['interpreted']['label']
+            label_line = self.program[self.current_line]['interpreted']['label_line']
+            Rt = self.program[self.current_line]['interpreted']['Rt']
+            if (self.RFILE[Rt] == 0):
+                print "Zero condition met"
+                self.current_line = label_line
+            else:
+                print "Zero condition not met"
+                self.current_line += 1
+            print "Now on line:", self.current_line
+            if (self.current_line < len(self.program)):
+                print "The instruction is now:", self.str_current()
+
+        elif (instr_name == 'CBNZ'):
+            label = self.program[self.current_line]['interpreted']['label']
+            label_line = self.program[self.current_line]['interpreted']['label_line']
+            Rt = self.program[self.current_line]['interpreted']['Rt']
+            if (self.RFILE[Rt] != 0):
+		print "Non-Zero condition met"
+                self.current_line = label_line
+            else:
+                print "Non-Zero condition not met"
+                self.current_line += 1
+            print "Now on line:", self.current_line
+            if (self.current_line < len(self.program)):
+                print "The instruction is now:", self.str_current()
             
         if (self.current_line < len(self.program)):
             return self.str_current()# We kinda do nothing with this rn, mainly used to determine if we reached the end of the program
         else:
             return 'END'
 
+    ##################################################################################
+    # Function: test_conditions
+    # Parameters: none
+    # Description: This function is used to test if flags have been set by previous
+    #              instructions. These flags will be unset after the call to this
+    #              function by B and CBZ instruction.
+    ################################################################################## 
+    def test_conditions(self):
+        branch_arg = self.program[self.current_line]['interpreted']['branch_arg']
+        if (branch_arg == 'EQ'):
+            return self.flags['Z'] == 1
+        elif (branch_arg == 'ZE'):
+            return self.flags['Z'] == 0
+        elif (branch_arg == 'LT'):
+            return self.flags['N'] != self.flags['V']
+        elif (branch_arg == 'LE'):
+            return not (self.flags['Z'] == 0 and self.flags['N'] == self.flags['V'])
+        elif (branch_arg == 'GT'):
+            return self.flags['Z'] == 0 and self.flags['N'] == self.flags['V']
+        elif (branch_arg == 'GE'):
+            return self.flags['N'] == self.flags['V']
+        return False
+        
+    ##################################################################################
+    # Function: unset_flags
+    # Parameters: none
+    # Description: Is used to reset flag values after it is used in a conditional 
+    #              branching instruction.
+    ##################################################################################
+    def unset_flags(self):
+        self.flags['N'] = 0
+        self.flags['Z']	= 0
+        self.flags['V']	= 0
+        self.flags['C']	= 0
+
+        
+    ##################################################################################
+    # Function: set_flags
+    # Parameters: result, an integer holding the result of an execution
+    # Description: Tests to see if the result of an execution meets the conditions
+    #              necessary to set flag values.
+    ##################################################################################
+    def set_flags(self, result):
+        if (result < 0):
+            self.flags['N'] = 1
+        elif (result == 0):
+            self.flags['Z'] = 1
+        # Including this outside the chain, as the negative and overflow flag can be set at the same time
+        if (result < -9223372036854775807 or result > 9223372036854775807):
+            self.flags['V'] = 1
+            
+        
     ##################################################################################
     # Function: str_current
     # Parameters: none
@@ -805,6 +1009,11 @@ class Instructions:
             Rn = current_instr['interpreted']['Rn']
 	    Rm = current_instr['interpreted']['Rm']
             output = name + " X" + str(Rd) + ", X" + str(Rn) + ", X" + str(Rm)
+
+        elif (name in self.instr_def['CB-Format']):
+            label = current_instr['interpreted']['label']
+            Rt = current_instr['interpreted']['Rt']
+            output = name + " X" + str(Rt) + ", " + label
             
         return output
 
@@ -818,7 +1027,6 @@ class Instructions:
     def print_all(self):
         current_instr = self.program[self.current_line]
         name = current_instr['name']
-        # The following line make it possible to interpret multiple formats
         if (name in self.instr_def['I-Format']):
             Rd = current_instr['interpreted']['Rd']
             Rn = current_instr['interpreted']['Rn']
@@ -848,7 +1056,7 @@ class Instructions:
             addr = current_instr['interpreted']['address']
             print "Instruction: ", name, " X" + str(Rt), ", [X" + str(Rn), ", #" + str(addr) + "]"
             print "Instruction OpCode: ", current_instr['interpreted']['opcode']
-            print "Write Register: X" + str(Rt), " ## Value in Target Register: ", self.RFILE[Rt]
+            print "Target Register: X" + str(Rt), " ## Value in Target Register: ", self.RFILE[Rt]
             print "Register 1: X" + str(Rn), " ## Value in Register 1: ", self.RFILE[Rn]
             print "Immediate value: ", addr
             
@@ -862,6 +1070,16 @@ class Instructions:
             print "Register 1: X" + str(Rn), " ## Value in Register 1: ", self.RFILE[Rn]
             print "Register 2: X" + str(Rm), " ## Value in Register 2: ", self.RFILE[Rm]
 
+        elif (name in self.instr_def['CB-Format']):
+            label = current_instr['interpreted']['label']
+            label_line = current_instr['interpreted']['label_line']
+            Rt = current_instr['interpreted']['Rt']
+            print "Instruction: ", name, "X" + str(Rt), ",", label
+            print "Instruction OpCode: ", current_instr['interpreted']['opcode']
+            print "Target Register: X" + str(Rt), " ## Value in Target Register: ", self.RFILE[Rt]
+            print "Address of label: ", label_line
+     
+            
     def printMem(self):
         k = len(self.MEM)
         print "Mem", " ", "Val"
