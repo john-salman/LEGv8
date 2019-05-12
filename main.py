@@ -1,4 +1,5 @@
 import sys
+from numpy import binary_repr
 
 ###########################################################################################################################################
 # Program: main.py
@@ -190,6 +191,8 @@ class Instructions:
             },
             'B-Format': {
                 "B": 160,
+                "BL": 1184,
+                "BR": 1712,
             },
             'D-Format':{
                 "STUR": 1984,
@@ -314,8 +317,51 @@ class Instructions:
                         j += 1
 
                 i += 1
-                
-    
+
+    ##################################################################################
+    # Function: Process_Register
+    # Parameters: the current line, and the current value of the indexer (i)
+    # Description: This function processes all the registers encountered while
+    #              processing an intruction. It can interpret all special registers
+    #              and sets them to their numerical value.
+    ##################################################################################
+    def Process_Register(self, line, i):
+        register = ""
+        if (line[i] == "S" or line[i] == "F"): # Write Register
+            register = line[i]
+            i += 1
+            if (line[i] == "P"):
+                i += 1
+                if (register[0] == "S"):
+                    register = 28
+                else: # we can assume [0] is an F
+                    register = 29
+            else:
+                print "Error: malformed instruction =>", line
+                sys.exit()
+        elif (line[i] == "L"):
+            register = line[i]
+            i += 1
+            if (line[i] == "R"):
+                register += 30
+                i += 1
+            else:
+                print "Error: malformed instruction =>", line
+                sys.exit()
+
+        elif (line[i] == "X"):
+            i += 1
+            while(i < len(line) and line[i] != ","):
+                register += line[i]
+                i += 1
+                if ("ZR" in register):
+                    register = 31
+        else:
+            print "Error: malformed instruction =>", line
+            sys.exit()
+        return register, i
+
+        
     ##################################################################################
     # Function: Process_I_Format
     # Parameters: the line, index(may not be necessary if we trim the string in
@@ -326,47 +372,42 @@ class Instructions:
     def Process_I_Format(self, line, i, current):
         instr = current # log the current as the instruction                                                                                 
         current = ""
-        i += 1 # get off space                                                                                                                       
-        if (line[i] == "X"): # Write register
+
+        while(i < len(line) and line[i] == " "):
             i += 1
+            
+        if (line[i] == "S" or line[i] == "F" or line[i] == "L" or line[i] == "X" ): # Write Register
+            rd_num, i = self.Process_Register(line, i)
         else:
             print "Error: malformed instruction =>", line
             sys.exit()
+            
+        while(line[i] == " " or line[i] == ","):
+            i += 1
+
                 
-        while(line[i] != ","): # these loops append the digits into a temp variable
-            current += line[i]
-            i += 1
-
-        rd_num = current
-        current = ""
-        i += 1 # get off comma                                                                                                                       
-        i += 1 # get off space                                                                                                                       
-
-        if (line[i] == "X"): # Rn
-            i += 1
+        if (line[i] == "S" or line[i] == "F" or line[i] == "L" or line[i] == "X" ): # Operand Register
+            rn_num, i = self.Process_Register(line, i)
         else:
             print "Error: malformed instruction =>", line
             sys.exit()
-            
-            
-        while(line[i] != ","):
-            current += line[i]
-            i += 1
-            
-        rn_num = current
-        current = ""
-        i += 1 # get off comma                                                                                                                       
-        i += 1 # get off space                                                                                                                       
 
+        while(line[i] == " " or line[i] == ","):
+            i += 1
+
+            
         if (line[i] == "#"): #immediate value
             i += 1
         else:
             print "Error: malformed instruction =>", line
             sys.exit() # we should explore a more graceful bomb out
-            
-        while(i < len(line)):
-            current += line[i]
+
+        if (line[i].isdigit() or line[i] == "+" or line[i] == "-"):
+            current += line[i] # doing this outside the loop as + or - can only be the first index
             i += 1
+            while(i < len(line) and line[i].isdigit()):
+                current += line[i]
+                i += 1
 
         imm = current
         opcode = self.instr_def['I-Format'][instr]
@@ -449,24 +490,20 @@ class Instructions:
     #              the values into an object interpretation
     ##################################################################################
     def Process_D_Format(self, line, i, current):
-        instr = current # log the current as the instruction                                                                                                                                                                 
+        instr = current # log the current as the instruction
         current = ""
-        i += 1 # get off space
-        
-        if (line[i] == "X"): # Destination register                                                                                                            
+
+        while (i < len(line) and line[i] == " "):
             i += 1
+        
+        if (line[i] == "S" or line[i] == "F" or line[i] == "L" or line[i] == "X" ): # Destination Register
+            rt_num, i = self.Process_Register(line, i)
         else:
             print "Error: malformed instruction =>", line
             sys.exit()
 
-        while(line[i] != ","): # these loops append the digits into a temp variable                                                                                                                                                   
-            current += line[i]
+        while(line[i] == " " or line[i] == ","):
             i += 1
-
-        rt_num = current
-        current = ""
-        i += 1 # get off comma                                                                                                                                                                                                            
-        i += 1 # get off space
 
         if (line[i] == "["): # Start of addressing space
             i += 1
@@ -474,21 +511,14 @@ class Instructions:
             print "Error: malformed instruction =>", line
             sys.exit()
             
-        if (line[i] == "X"): # Rn
-            i += 1
+        if (line[i] == "S" or line[i] == "F" or line[i] == "L" or line[i] == "X" ): # Address Register
+            rn_num, i = self.Process_Register(line, i)
         else:
             print "Error: malformed instruction =>", line
             sys.exit()
 
-
-        while(line[i] != ","):
-            current += line[i]
+        while(line[i] == " " or line[i] == ","):
             i += 1
-
-        rn_num = current
-        current = ""
-	i += 1 # get off comma
-        i += 1 # get off space
 
         if (line[i] == "#"): #addressing value
             i += 1
@@ -500,7 +530,7 @@ class Instructions:
             current += line[i]
             i += 1
             
-        if (line[i] == "]"): # Rn                                                                                                                                             
+        if (line[i] == "]"): # Rn
 	    i += 1
         else:
             print "Error: malformed instruction =>", line
@@ -533,49 +563,35 @@ class Instructions:
     def Process_R_Format(self, line, i, current):
         instr = current # log the current as the instruction
         current = ""
-        i += 1 # get off space
-        if (line[i] == "X"):
+
+        while (line[i] == " "):
             i += 1
+        
+        if (line[i] == "S" or line[i] == "F" or line[i] == "L" or line[i] == "X" ): # Write Register
+            rd_num, i = self.Process_Register(line, i)
         else:
             print "Error: malformed instruction =>", line
             sys.exit()
 
-        while(line[i] != ","):
-            current += line[i]
+        while(line[i] == " " or line[i] == ","):
             i += 1
 
-        rd_num = current
-        current = ""
-        i += 1 # get off comma
-        i += 1 # get off space
-
-        if (line[i] == "X"):
-            i += 1
+        if (line[i] == "S" or line[i] == "F" or line[i] == "L" or line[i] == "X" ): # Operand 1 Register
+            rn_num, i = self.Process_Register(line, i)
         else:
             print "Error: malformed instruction =>", line
             sys.exit()
 
-
-        while(line[i] != ","):
-            current += line[i]
+        while(line[i] == " " or line[i] == ","):
             i += 1
 
-        rn_num = current
-        current = ""
-        i += 1 # get off comma
-        i += 1 # get off space
 
-        if (line[i] == "X"):
-            i += 1
+        if (line[i] == "S" or line[i] == "F" or line[i] == "L" or line[i] == "X" ): # Operand 2 Register
+            rm_num, i = self.Process_Register(line, i)
         else:
             print "Error: malformed instruction =>", line
             sys.exit()
 
-        while(i < len(line)):
-            current += line[i]
-            i += 1
-
-        rm_num = current
         opcode = self.instr_def['R-Format'][instr]
         self.Make_R_Format(instr, opcode, rm_num, rn_num, rd_num) # insert new object in instruction array with line serving as index
         return
@@ -606,20 +622,13 @@ class Instructions:
         while (i < len(line) and line[i] == ' '):
             i += 1
 
-        if (line[i] == "X"):
-            i += 1
+        if (line[i] == "S" or line[i] == "F" or line[i] == "L" or line[i] == "X" ): # Operand 2 Register
+            rt_num, i = self.Process_Register(line, i)
         else:
             print "Error: malformed instruction =>", line
             sys.exit()
 
-        while (line[i] != ","):
-            current += line[i]
-            i += 1
-
-        rt_num = current
-        current = ""
-
-        while (line[i] == " "):
+        while (line[i] == " " or line[i] == ","):
             i += 1
         
         if (i == len(line)):
@@ -760,6 +769,8 @@ class Instructions:
             if (self.current_line < len(self.program)):
                 print "The instruction is now:", self.str_current()
             self.unset_flags()
+
+        elif (instr_name == 'BR'):
             
         #D-Format
         elif (instr_name == 'LDUR'):
@@ -972,7 +983,26 @@ class Instructions:
         if (result < -9223372036854775807 or result > 9223372036854775807):
             self.flags['V'] = 1
             
-        
+    ##################################################################################
+    # Function: reg_to_string
+    # Parameters: x, an integer representing an index of RFILE
+    # Description: Formats and interprets register indices for printing commands.
+    ##################################################################################
+    def reg_to_string(self, x):
+        register = ""
+        if (x == 28):
+            register = "SP"
+        elif (x == 29):
+            register = "FP"
+        elif (x == 30):
+            register = "LR"
+        elif (x == 31):
+            register = "XZR"
+        else:
+            register = "X" + str(x)
+
+        return register
+    
     ##################################################################################
     # Function: str_current
     # Parameters: none
@@ -985,10 +1015,10 @@ class Instructions:
         
         name = current_instr['name']
         if (name in self.instr_def['I-Format']):
-            Rd = current_instr['interpreted']['Rd']
-            Rn = current_instr['interpreted']['Rn']
+            Rd = self.reg_to_string(current_instr['interpreted']['Rd'])
+            Rn = self.reg_to_string(current_instr['interpreted']['Rn'])
             imm = current_instr['interpreted']['imm']
-            output = name + " X" + str(Rd) + ", X" + str(Rn) + ", #" + str(imm)
+            output = name + " " + Rd + ", " + Rn + ", #" + str(imm)
 
         elif (name in self.instr_def['B-Format']):
             label = current_instr['interpreted']['label']
@@ -998,22 +1028,22 @@ class Instructions:
             output = name + arg + ' ' + label
             
         elif (name in self.instr_def['D-Format']):
-            Rt = current_instr['interpreted']['Rt']
-            Rn = current_instr['interpreted']['Rn']
+            Rt = self.reg_to_string(current_instr['interpreted']['Rt'])
+            Rn = self.reg_to_string(current_instr['interpreted']['Rn'])
             addr = current_instr['interpreted']['address']
-            output = name + " X" + str(Rt) + ", [X" + str(Rn) + ", #" + str(addr) + "]"
+            output = name + " " + Rt + ", [" + Rn + ", #" + str(addr) + "]"
 
 
         elif (name in self.instr_def['R-Format']):
-            Rd = current_instr['interpreted']['Rd']
-            Rn = current_instr['interpreted']['Rn']
-	    Rm = current_instr['interpreted']['Rm']
-            output = name + " X" + str(Rd) + ", X" + str(Rn) + ", X" + str(Rm)
+            Rd = self.reg_to_string(current_instr['interpreted']['Rd'])
+            Rn = self.reg_to_string(current_instr['interpreted']['Rn'])
+	    Rm = self.reg_to_string(current_instr['interpreted']['Rm'])
+            output = name + " " + Rd + ", " + Rn + ", " + Rm
 
         elif (name in self.instr_def['CB-Format']):
             label = current_instr['interpreted']['label']
-            Rt = current_instr['interpreted']['Rt']
-            output = name + " X" + str(Rt) + ", " + label
+            Rt = self.reg_to_string(current_instr['interpreted']['Rt'])
+            output = name + " " + Rt + ", " + label
             
         return output
 
@@ -1029,12 +1059,14 @@ class Instructions:
         name = current_instr['name']
         if (name in self.instr_def['I-Format']):
             Rd = current_instr['interpreted']['Rd']
+            str_rd = self.reg_to_string(Rd)
             Rn = current_instr['interpreted']['Rn']
+            str_rn = self.reg_to_string(Rn)
             imm = current_instr['interpreted']['imm']
-            print "Instruction: ", name, " X" + str(Rd), ", X" + str(Rn), ", #" + str(imm) 
+            print "Instruction: ", name, " " + str_rd, ", " + str_rn, ", #" + str(imm) 
             print "Instruction OpCode: ", current_instr['interpreted']['opcode'] 
-            print "Write Register: X" + str(Rd), " ## Value in Write Register: ", self.RFILE[Rd]
-            print "Register 1: X" + str(Rn), " ## Value in Register 1: ", self.RFILE[Rn]
+            print "Write Register: " + str_rd, " ## Value in Write Register: ", self.RFILE[Rd]
+            print "Register 1: X" + str_rn, " ## Value in Register 1: ", self.RFILE[Rn]
             print "Immediate value: ", imm
 
         elif (name in self.instr_def['B-Format']):
@@ -1052,46 +1084,60 @@ class Instructions:
 
         elif (name in self.instr_def['D-Format']):
             Rt = current_instr['interpreted']['Rt']
+            str_rt = self.reg_to_string(Rt)
             Rn = current_instr['interpreted']['Rn']
+            str_rn = self.reg_to_string(Rn)
             addr = current_instr['interpreted']['address']
-            print "Instruction: ", name, " X" + str(Rt), ", [X" + str(Rn), ", #" + str(addr) + "]"
+            print "Instruction: ", name, " " + str_rt, ", [" + str_rn, ", #" + str(addr) + "]"
             print "Instruction OpCode: ", current_instr['interpreted']['opcode']
-            print "Target Register: X" + str(Rt), " ## Value in Target Register: ", self.RFILE[Rt]
-            print "Register 1: X" + str(Rn), " ## Value in Register 1: ", self.RFILE[Rn]
+            print "Target Register: " + str_rt, " ## Value in Target Register: ", self.RFILE[Rt]
+            print "Register 1: " + str_rn, " ## Value in Register 1: ", self.RFILE[Rn]
             print "Immediate value: ", addr
             
         elif (name in self.instr_def['R-Format']):
             Rd = current_instr['interpreted']['Rd']
+            str_rd = self.reg_to_string(Rd)
             Rn = current_instr['interpreted']['Rn']
+            str_rn = self.reg_to_string(Rn)
             Rm = current_instr['interpreted']['Rm']
-            print "Instruction: ", name, " X" + str(Rd), ", X" + str(Rn), ", X" + str(Rm)
+            str_rm = self.reg_to_string(Rm)
+            print "Instruction: ", name, " " + str_rd, ", " + str_rn, ", " + str_rm
             print "Instruction OpCode: ", current_instr['interpreted']['opcode']
-            print "Write Register: X" + str(Rd), " ## Value in Write Register: ", self.RFILE[Rd]
-            print "Register 1: X" + str(Rn), " ## Value in Register 1: ", self.RFILE[Rn]
-            print "Register 2: X" + str(Rm), " ## Value in Register 2: ", self.RFILE[Rm]
+            print "Write Register: " + str_rd, " ## Value in Write Register: ", self.RFILE[Rd]
+            print "Register 1: X" + str_rn, " ## Value in Register 1: ", self.RFILE[Rn]
+            print "Register 2: X" + str_rm, " ## Value in Register 2: ", self.RFILE[Rm]
 
         elif (name in self.instr_def['CB-Format']):
             label = current_instr['interpreted']['label']
             label_line = current_instr['interpreted']['label_line']
             Rt = current_instr['interpreted']['Rt']
-            print "Instruction: ", name, "X" + str(Rt), ",", label
+            str_rt = self.reg_to_string(Rt)
+            print "Instruction: ", name, " " + str_rt, ",", label
             print "Instruction OpCode: ", current_instr['interpreted']['opcode']
-            print "Target Register: X" + str(Rt), " ## Value in Target Register: ", self.RFILE[Rt]
+            print "Target Register: " + str_rt, " ## Value in Target Register: ", self.RFILE[Rt]
             print "Address of label: ", label_line
      
             
     def printMem(self):
         k = len(self.MEM)
+        print "*******************************************"
+        print "                  MEMORY"
+        print "*******************************************"
         print "Mem", " ", "Val"
         for i in range(k):
             print i, " ", " ", self.MEM[i]
-
+        print ""
+            
     def printReg(self):
         k = len(self.RFILE)
+        print "*******************************************"
+        print "                 REGISTERS"
+        print "*******************************************"
         print "Reg", " ", "Val"
         for i in range(k):
             print "X"+str(i), " ", " ", self.RFILE[i]
-
+        print ""
+            
 
 
 def digit_test(value):
@@ -1106,6 +1152,7 @@ def digit_test(value):
     return True
 
 def main():
+    print binary_repr(3 + 4, 64)
     if (len(sys.argv) < 2):
         _input = raw_input("Please enter the name of the file containing the LEGv8 program: ")
         fileName = _input
