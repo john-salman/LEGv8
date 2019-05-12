@@ -1152,7 +1152,6 @@ def digit_test(value):
     return True
 
 def main():
-    print binary_repr(3 + 4, 64)
     if (len(sys.argv) < 2):
         _input = raw_input("Please enter the name of the file containing the LEGv8 program: ")
         fileName = _input
