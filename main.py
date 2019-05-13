@@ -152,7 +152,7 @@ class Instructions:
         }
 
         self.branch_args = ['EQ', 'NE', 'LT', 'LE', 'GT', 'GE'] 
-        self.RFILE = [7, 5, -2, 6, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        self.RFILE = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
         self.program = []
         self.prog_idx = 0 # current line being loaded into program[]
@@ -192,16 +192,20 @@ class Instructions:
             'B-Format': {
                 "B": 160,
                 "BL": 1184,
-                "BR": 1712,
             },
             'D-Format':{
                 "STUR": 1984,
                 "LDUR": 1986,
-                "ANDS": 1104,
-                "ADDS": 1368,
-                "SUBS": 1880,
+                "STURW": 1472,
+                "LDURSW": 1476,
+                "STURH": 960,
+		"LDURH": 962,
+                "STURB": 448,
+		"LDURB": 450,
+
             },
             'R-Format': {
+                "BR": 1712,
                 "ADD": 1112,
                 "SUB": 1624,
                 "AND": 1104,
@@ -209,6 +213,10 @@ class Instructions:
                 "EOR": 1616,
                 "LSR": 1690,
                 "LSL": 1691,
+                "ANDS": 1104,
+		"ADDS": 1368,
+                "SUBS": 1880,
+
             },
             'CB-Format': {
                 "CBZ": 1440,
@@ -306,14 +314,14 @@ class Instructions:
             prog_len = len(self.program)
             while (i < prog_len):
                 current = self.program[i]
-                if (current['name'] in self.instr_def['B-Format']
+                if ((current['name'] in self.instr_def['B-Format'] or current['name'] in self.instr_def['CB-Format'])
                     and current['interpreted']['label_line'] == -1):
 
                     j = 0
                     while (j < len(self.labels)):
                         if (self.labels[j]['label'] == current['interpreted']['label']):
                             current['interpreted']['label_line'] = self.labels[j]['line']
-                            break
+                            
                         j += 1
 
                 i += 1
@@ -444,13 +452,14 @@ class Instructions:
             print "Error: malformed instruction =>", line
             sys.exit()
         else:    
-            while(i < len(line) and line[i].isalpha()): # these loops append the digits into a temp variable
+            while(i < len(line) and line[i] != " " and line[i] != "\n"): # these loops append the digits into a temp variable
                 current += line[i]
                 i += 1
-
+            
             label = current
             label_line = self.Find_Label(label)
             opcode = self.instr_def['B-Format'][instr]
+
             self.Make_B_Format(instr, opcode, label, label_line, branch_arg) # insert new object in instruction array with line serving as index
         return
 
@@ -573,24 +582,27 @@ class Instructions:
             print "Error: malformed instruction =>", line
             sys.exit()
 
-        while(line[i] == " " or line[i] == ","):
+        while(i != len(line) and (line[i] == " " or line[i] == ",")):
             i += 1
-
-        if (line[i] == "S" or line[i] == "F" or line[i] == "L" or line[i] == "X" ): # Operand 1 Register
-            rn_num, i = self.Process_Register(line, i)
+        if (i == len(line) and instr == "BR"):
+            rn_num = -1
+            rm_num = -1
         else:
-            print "Error: malformed instruction =>", line
-            sys.exit()
+            if (line[i] == "S" or line[i] == "F" or line[i] == "L" or line[i] == "X" ): # Operand 1 Register
+                rn_num, i = self.Process_Register(line, i)
+            else:
+                print "Error: malformed instruction =>", line
+                sys.exit()
 
-        while(line[i] == " " or line[i] == ","):
-            i += 1
+            while(line[i] == " " or line[i] == ","):
+                i += 1
 
 
-        if (line[i] == "S" or line[i] == "F" or line[i] == "L" or line[i] == "X" ): # Operand 2 Register
-            rm_num, i = self.Process_Register(line, i)
-        else:
-            print "Error: malformed instruction =>", line
-            sys.exit()
+            if (line[i] == "S" or line[i] == "F" or line[i] == "L" or line[i] == "X" ): # Operand 2 Register
+                rm_num, i = self.Process_Register(line, i)
+            else:
+                print "Error: malformed instruction =>", line
+                sys.exit()
 
         opcode = self.instr_def['R-Format'][instr]
         self.Make_R_Format(instr, opcode, rm_num, rn_num, rd_num) # insert new object in instruction array with line serving as index
@@ -652,7 +664,7 @@ class Instructions:
     #              object format. This format makes actual instruction implementations
     #              more trivial.                                                                                                  
     ##################################################################################
-    def Make_CB_Format(self, _name, _opcode, _rt, _label, _label_line, _branch_arg):
+    def Make_CB_Format(self, _name, _opcode, _rt, _label, _label_line):
         self.program.append({'name': _name, 'interpreted': {'opcode': int(_opcode), 'Rt': int(_rt), 'label': _label, 'label_line': _label_line}})
         self.prog_idx += 1
         return
@@ -667,6 +679,7 @@ class Instructions:
     def execute(self):
         current_instr = self.program[self.current_line]
         instr_name = current_instr['name']
+        interpreted_instr = current_instr['interpreted']
 
         print " " # seperator
         print "Executing Line: " + self.str_current()
@@ -675,85 +688,85 @@ class Instructions:
         
         # I-Format
         if (instr_name == 'ADDI'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            immediate = self.program[self.current_line]['interpreted']['imm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "+", immediate
-            self.RFILE[Rd] = self.RFILE[Rn] + immediate
+            self.RFILE[Rd] = self.RFILE[Rn] + immediate	if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
         if (instr_name == 'ADDIS'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            immediate = self.program[self.current_line]['interpreted']['imm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "+", immediate
-            self.RFILE[Rd] = self.RFILE[Rn] + immediate
+            self.RFILE[Rd] = self.RFILE[Rn] + immediate	if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.set_flags(self.RFILE[Rd])
             print "Flags set by intruction:", self.flags
             self.current_line += 1
             
         elif (instr_name == 'SUBI'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            immediate = self.program[self.current_line]['interpreted']['imm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "-",	immediate
-            self.RFILE[Rd] = self.RFILE[Rn] + immediate
+            self.RFILE[Rd] = self.RFILE[Rn] + immediate	if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
         elif (instr_name == 'SUBIS'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            immediate = self.program[self.current_line]['interpreted']['imm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "-",    immediate
-            self.RFILE[Rd] = self.RFILE[Rn] + immediate
+            self.RFILE[Rd] = self.RFILE[Rn] + immediate	if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.set_flags(self.RFILE[Rd])
             print "Flags set by intruction:", self.flags
             self.current_line += 1
             
         elif (instr_name == 'ANDI'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            immediate = self.program[self.current_line]['interpreted']['imm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "&",    immediate
-            self.RFILE[Rd] = self.RFILE[Rn] & immediate
+            self.RFILE[Rd] = self.RFILE[Rn] & immediate	if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
         elif (instr_name == 'ORRI'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            immediate = self.program[self.current_line]['interpreted']['imm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "|",    immediate
-            self.RFILE[Rd] = self.RFILE[Rn] | immediate
+            self.RFILE[Rd] = self.RFILE[Rn] | immediate if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
         elif (instr_name == 'EORI'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            immediate = self.program[self.current_line]['interpreted']['imm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "^",    immediate
-            self.RFILE[Rd] = self.RFILE[Rn] ^ immediate
+            self.RFILE[Rd] = self.RFILE[Rn] ^ immediate if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
         
         #B-Format
         elif (instr_name == 'B'):
-            label = self.program[self.current_line]['interpreted']['label']
-            label_line = self.program[self.current_line]['interpreted']['label_line']
-            arg = self.program[self.current_line]['interpreted']['branch_arg']
+            label = interpreted_instr['label']
+            label_line = interpreted_instr['label_line']
+            arg = interpreted_instr['branch_arg']
             if (arg != ""):
                 print "Branching with condition:", arg
                 if (self.test_conditions()):
@@ -770,139 +783,234 @@ class Instructions:
                 print "The instruction is now:", self.str_current()
             self.unset_flags()
 
-        elif (instr_name == 'BR'):
+        elif (instr_name == 'BL'):
+            label = interpreted_instr['label']
+	    label_line = interpreted_instr['label_line']
+            arg = interpreted_instr['branch_arg']
+            print "Performing a branch and link instruction"
+            print "Value of link register before execution:", self.RFILE[30] 
+            if (arg != ""):
+                print "Branching with condition:", arg
+                if (self.test_conditions()):
+                    print "Branch condition met."
+                    print "Jumping to label:", label
+                    self.RFILE[30] = self.current_line
+                    self.current_line = label_line
+                else:
+                    print "Branch Condition not met"
+                    self.current_line += 1
+            else:
+                print "Jumping to label:", label
+                self.RFILE[30] = self.current_line
+                self.current_line = label_line
+            print "Value of link register after execution:", self.RFILE[30]
+            print "Now on line:", self.current_line
+            if (self.current_line < len(self.program)):
+                print "The instruction is now:", self.str_current()
+            self.unset_flags() # assuming this would be expected behavior
+
             
         #D-Format
         elif (instr_name == 'LDUR'):
-            Rt = self.program[self.current_line]['interpreted']['Rt']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            address = self.program[self.current_line]['interpreted']['address']
+            Rt = interpreted_instr['Rt']
+            Rn = interpreted_instr['Rn']
+            address = interpreted_instr['address']
             mem_location = self.RFILE[Rn] + address
-            print "Value:", self.MEM[mem_location], "loaded into register: X" + str(Rt)
-            self.RFILE[Rt] = self.MEM[mem_location]
+            value = self.load_helper(mem_location, "full")
+            print "Value:", value, "loaded into register: " + self.reg_to_string(Rt)
+            self.RFILE[Rt] = value if Rt != 31 else 0
             self.current_line += 1
             
         elif (instr_name == 'STUR'):
-            Rt = self.program[self.current_line]['interpreted']['Rt']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            address = self.program[self.current_line]['interpreted']['address']
+            Rt = interpreted_instr['Rt']
+            Rn = interpreted_instr['Rn']
+            address = interpreted_instr['address']
             mem_location = self.RFILE[Rn] + address
             print "Value:", self.RFILE[Rt], "loaded into memory at location:", mem_location
-            self.MEM[mem_location] = self.RFILE[Rt]
+            self.store_helper(self.RFILE[Rt], mem_location, "full")
             self.current_line += 1
+
+        elif (instr_name == 'LDURSW'):
+            Rt = interpreted_instr['Rt']
+            Rn = interpreted_instr['Rn']
+            address = interpreted_instr['address']
+            mem_location = self.RFILE[Rn] + address
+            value = self.load_helper(mem_location, "word")
+            print "Value:", value, "loaded into register: " + self.reg_to_string(Rt)
+            self.RFILE[Rt] = value if Rt != 31 else 0
+            self.current_line += 1
+
+        elif (instr_name == 'STURW'):
+            Rt = interpreted_instr['Rt']
+            Rn = interpreted_instr['Rn']
+            address = interpreted_instr['address']
+            mem_location = self.RFILE[Rn] + address
+            print "Value:", self.RFILE[Rt], "loaded into memory at location:", mem_location
+            self.store_helper(self.RFILE[Rt], mem_location, "word")
+            self.current_line += 1
+
+        elif (instr_name == 'LDURH'):
+            Rt = interpreted_instr['Rt']
+            Rn = interpreted_instr['Rn']
+            address = interpreted_instr['address']
+            mem_location = self.RFILE[Rn] + address
+            value = self.load_helper(mem_location, "half_word")
+            print "Value:", value, "loaded into register: " + self.reg_to_string(Rt)
+            self.RFILE[Rt] = value if Rt != 31 else 0
+            self.current_line += 1
+
+        elif (instr_name == 'STURH'):
+            Rt = interpreted_instr['Rt']
+            Rn = interpreted_instr['Rn']
+            address = interpreted_instr['address']
+            mem_location = self.RFILE[Rn] + address
+            print "Value:", self.RFILE[Rt], "loaded into memory at location:", mem_location
+            self.store_helper(self.RFILE[Rt], mem_location, "half_word")
+            self.current_line += 1
+
+        elif (instr_name == 'LDURB'):
+            Rt = interpreted_instr['Rt']
+            Rn = interpreted_instr['Rn']
+            address = interpreted_instr['address']
+            mem_location = self.RFILE[Rn] + address
+            value = self.load_helper(mem_location, "byte")
+            print "Value:", value, "loaded into register: " + self.reg_to_string(Rt)
+            self.RFILE[Rt] = value if Rt != 31 else 0
+            self.current_line += 1
+
+        elif (instr_name == 'STURB'):
+            Rt = interpreted_instr['Rt']
+            Rn = interpreted_instr['Rn']
+            address = interpreted_instr['address']
+            mem_location = self.RFILE[Rn] + address
+            print "Value:", self.RFILE[Rt], "loaded into memory at location:", mem_location
+            self.store_helper(self.RFILE[Rt], mem_location, "byte")
+            self.current_line += 1
+
+        
             
         # R-Format
+        elif (instr_name == 'BR'):
+            Rd = interpreted_instr['Rd']
+            print "Branching to value in register: " + self.reg_to_string(Rd)
+            print "That value is:", self.RFILE[Rd]
+            self.current_line = self.RFILE[Rd]
+            print "Now on line:", self.current_line
+            if (self.current_line < len(self.program)):
+                print "The instruction is now:", self.str_current()
+            self.unset_flags() # assuming this would be expected behavior
+
         elif (instr_name == 'ADD'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            Rm = self.program[self.current_line]['interpreted']['Rm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "+", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] + self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] + self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
         elif (instr_name == 'ADDS'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            Rm = self.program[self.current_line]['interpreted']['Rm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "+", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] + self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] + self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.set_flags(self.RFILE[Rd])
             print "Flags set by intruction:", self.flags
             self.current_line += 1
             
         elif (instr_name == 'SUB'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            Rm = self.program[self.current_line]['interpreted']['Rm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "-", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] - self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] - self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
         elif (instr_name == 'SUBS'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            Rm = self.program[self.current_line]['interpreted']['Rm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "-", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] - self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] - self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.set_flags(self.RFILE[Rd])
             print "Flags set by intruction:", self.flags
             self.current_line += 1
             
         elif (instr_name == 'AND'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            Rm = self.program[self.current_line]['interpreted']['Rm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "&", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] & self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] & self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
         elif (instr_name == 'ANDS'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            Rm = self.program[self.current_line]['interpreted']['Rm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "&", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] & self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] & self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.set_flags(self.RFILE[Rd])
             print "Flags set by intruction:", self.flags
             self.current_line += 1
             
         elif (instr_name == 'ORR'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            Rm = self.program[self.current_line]['interpreted']['Rm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "|", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] | self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] | self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
         elif (instr_name == 'EOR'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            Rm = self.program[self.current_line]['interpreted']['Rm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "^", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] ^ self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] ^ self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
         elif (instr_name == 'LSR'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            Rm = self.program[self.current_line]['interpreted']['Rm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], ">>", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] >> self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] >> self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
         elif (instr_name == 'LSL'):
-            Rd = self.program[self.current_line]['interpreted']['Rd']
-            Rn = self.program[self.current_line]['interpreted']['Rn']
-            Rm = self.program[self.current_line]['interpreted']['Rm']
+            Rd = interpreted_instr['Rd']
+            Rn = interpreted_instr['Rn']
+            Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "<<", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] << self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] << self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
         # CB-Format
         elif (instr_name == 'CBZ'):
-            label = self.program[self.current_line]['interpreted']['label']
-            label_line = self.program[self.current_line]['interpreted']['label_line']
-            Rt = self.program[self.current_line]['interpreted']['Rt']
+            label = interpreted_instr['label']
+            label_line = interpreted_instr['label_line']
+            Rt = interpreted_instr['Rt']
             if (self.RFILE[Rt] == 0):
                 print "Zero condition met"
                 self.current_line = label_line
@@ -914,9 +1022,9 @@ class Instructions:
                 print "The instruction is now:", self.str_current()
 
         elif (instr_name == 'CBNZ'):
-            label = self.program[self.current_line]['interpreted']['label']
-            label_line = self.program[self.current_line]['interpreted']['label_line']
-            Rt = self.program[self.current_line]['interpreted']['Rt']
+            label = interpreted_instr['label']
+            label_line = interpreted_instr['label_line']
+            Rt = interpreted_instr['Rt']
             if (self.RFILE[Rt] != 0):
 		print "Non-Zero condition met"
                 self.current_line = label_line
@@ -932,6 +1040,83 @@ class Instructions:
         else:
             return 'END'
 
+    ##################################################################################
+    # Function: load_helper
+    # Parameters: the index in memory to load from, and the amount to load
+    # Description: This function build a 64 bit binary string then correctly casts
+    #              the binary string into an int
+    ##################################################################################
+    def load_helper(self, index, amount):
+        binary_sum = ""
+        size = 0
+        if (amount == "byte"):
+            size = 1
+        elif (amount == "half_word"):
+            size = 2
+        elif (amount == "word"):
+            size = 4
+        elif (amount == "full"):
+            size = 8
+        else:
+            print "Structural Error: Invalid amount provided in execution of load instruction =>", amount
+            sys.exit()
+            
+        end_index = index + size
+        while (index < end_index):
+            bin_value = self.MEM[index]
+            binary_sum = bin_value + binary_sum
+            index += 1
+
+        if (binary_sum[0] == '1'): # negative number
+            return int(binary_sum, 2) - (1 << len(binary_sum))
+        else:
+            return int(binary_sum, 2)
+
+
+    ##################################################################################
+    # Function: store_helper
+    # Parameters: the value to be loaded into memory, the index in memory, the amount
+    #             needed to represent the value within memory
+    # Description: This function first turns the value into a binary string then
+    #              splices the string into eight parts ands stores them in consecutive
+    #              memory locations.
+    ##################################################################################
+    def store_helper(self, value, index, amount):
+        int_value = int(value)
+        bin_value = binary_repr(int_value, 64)
+
+        if (amount == "byte" or amount == "half_word" or amount == "word" or amount == "full"):
+
+            self.MEM[index] = bin_value[0:8]
+            index += 1
+
+            if (amount == "half_word" or amount == "word" or amount == "full"):
+
+                self.MEM[index] = bin_value[8:16]
+                index += 1
+
+                if (amount == "word" or amount == "full"):
+
+                    self.MEM[index] = bin_value[16:24]
+                    index += 1
+                    
+                    self.MEM[index] = bin_value[24:32]
+                    index += 1
+
+                    if (amount == "full"):
+
+                        self.MEM[index] = bin_value[32:40]
+                        index += 1
+
+                        self.MEM[index] = bin_value[40:48]
+                        index += 1
+
+                        self.MEM[index] = bin_value[48:56]
+                        index += 1
+
+                        self.MEM[index] = bin_value[56:64]
+                        index += 1
+        
     ##################################################################################
     # Function: test_conditions
     # Parameters: none
@@ -1036,9 +1221,12 @@ class Instructions:
 
         elif (name in self.instr_def['R-Format']):
             Rd = self.reg_to_string(current_instr['interpreted']['Rd'])
-            Rn = self.reg_to_string(current_instr['interpreted']['Rn'])
-	    Rm = self.reg_to_string(current_instr['interpreted']['Rm'])
-            output = name + " " + Rd + ", " + Rn + ", " + Rm
+            if (name != "BR"):
+                Rn = self.reg_to_string(current_instr['interpreted']['Rn'])
+	        Rm = self.reg_to_string(current_instr['interpreted']['Rm'])
+                output = name + " " + Rd + ", " + Rn + ", " + Rm
+            else:
+                output = name + " " + Rd 
 
         elif (name in self.instr_def['CB-Format']):
             label = current_instr['interpreted']['label']
@@ -1098,15 +1286,21 @@ class Instructions:
             Rd = current_instr['interpreted']['Rd']
             str_rd = self.reg_to_string(Rd)
             Rn = current_instr['interpreted']['Rn']
-            str_rn = self.reg_to_string(Rn)
-            Rm = current_instr['interpreted']['Rm']
-            str_rm = self.reg_to_string(Rm)
-            print "Instruction: ", name, " " + str_rd, ", " + str_rn, ", " + str_rm
-            print "Instruction OpCode: ", current_instr['interpreted']['opcode']
-            print "Write Register: " + str_rd, " ## Value in Write Register: ", self.RFILE[Rd]
-            print "Register 1: X" + str_rn, " ## Value in Register 1: ", self.RFILE[Rn]
-            print "Register 2: X" + str_rm, " ## Value in Register 2: ", self.RFILE[Rm]
+            if (Rn != -1):
+                str_rn = self.reg_to_string(Rn)
+                Rm = current_instr['interpreted']['Rm']
+                str_rm = self.reg_to_string(Rm)
+                print "Instruction: ", name, " " + str_rd, ", " + str_rn, ", " + str_rm
+                print "Instruction OpCode: ", current_instr['interpreted']['opcode']
+                print "Write Register: " + str_rd, " ## Value in Write Register: ", self.RFILE[Rd]
+                print "Register 1: X" + str_rn, " ## Value in Register 1: ", self.RFILE[Rn]
+                print "Register 2: X" + str_rm, " ## Value in Register 2: ", self.RFILE[Rm]
+            else:
+                print "Instruction: ", name, " " + str_rd
+                print "Instruction OpCode: ", current_instr['interpreted']['opcode']
+                print "Write Register: " + str_rd, " ## Value in Write Register: ", self.RFILE[Rd]
 
+                
         elif (name in self.instr_def['CB-Format']):
             label = current_instr['interpreted']['label']
             label_line = current_instr['interpreted']['label_line']
@@ -1125,7 +1319,8 @@ class Instructions:
         print "*******************************************"
         print "Mem", " ", "Val"
         for i in range(k):
-            print i, " ", " ", self.MEM[i]
+            if (self.MEM[i] != -1):
+                print i, " ", " ", self.MEM[i]
         print ""
             
     def printReg(self):
@@ -1139,6 +1334,47 @@ class Instructions:
         print ""
             
 
+def input_memory():
+    memory = []
+    mem_idx = 0
+    value = ""
+    while (mem_idx < 1000 and value != 'done' and value != 'd'):
+        value = raw_input("Please enter a value for memory index " + str(mem_idx) + " or 'done' when finished: ")
+        if (digit_test(value)):
+            int_value = int(value)
+            bin_value = binary_repr(int_value, 64)
+
+            print "Splitting value into indeces:", mem_idx, "-", mem_idx + 8
+            memory.append(bin_value[56:64])
+            mem_idx += 1
+            
+            memory.append(bin_value[48:56])
+            mem_idx += 1
+            
+            memory.append(bin_value[40:48])
+            mem_idx += 1
+            
+            memory.append(bin_value[32:40])
+            mem_idx += 1
+            
+            memory.append(bin_value[24:32])
+            mem_idx += 1
+            
+            memory.append(bin_value[16:24])
+            mem_idx += 1
+            
+            memory.append(bin_value[8:16])
+            mem_idx += 1
+            
+            memory.append(bin_value[0:8])
+            mem_idx += 1
+            
+        elif (value != 'd' and value != 'done'):
+            print "Error: non digit value entered, please enter numerical values only"
+    while (mem_idx < 500):
+        memory.append(-1)
+        mem_idx += 1
+    return memory
 
 def digit_test(value):
     digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',]
@@ -1158,16 +1394,7 @@ def main():
     else:
         fileName = sys.argv[1]
         
-    memory = []
-    mem_idx = 0
-    value = ""
-    while (mem_idx < 1000 and value != 'done' and value != 'd'):
-        value = raw_input("Please enter a value for memory index " + str(mem_idx) + " or 'done' when finished: ")
-        if (digit_test(value)):
-            memory.append(int(value))
-            mem_idx += 1
-        elif (value != 'd' and value != 'done'):
-            print "Error: non digit value entered, please enter numerical values only"
+    memory = input_memory()
             
     controller = Control(fileName, memory)
     decision = raw_input("Enter 'step' for a step-by-step execution, or 'full' for a full-through execution: ")
