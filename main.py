@@ -314,14 +314,14 @@ class Instructions:
             prog_len = len(self.program)
             while (i < prog_len):
                 current = self.program[i]
-                if (current['name'] in self.instr_def['B-Format']
+                if ((current['name'] in self.instr_def['B-Format'] or current['name'] in self.instr_def['CB-Format'])
                     and current['interpreted']['label_line'] == -1):
 
                     j = 0
                     while (j < len(self.labels)):
                         if (self.labels[j]['label'] == current['interpreted']['label']):
                             current['interpreted']['label_line'] = self.labels[j]['line']
-                            break
+                            
                         j += 1
 
                 i += 1
@@ -452,26 +452,14 @@ class Instructions:
             print "Error: malformed instruction =>", line
             sys.exit()
         else:    
-            while(i < len(line) and line[i] != " "): # these loops append the digits into a temp variable
+            while(i < len(line) and line[i] != " " and line[i] != "\n"): # these loops append the digits into a temp variable
                 current += line[i]
                 i += 1
-            
-            #if (len(current) < 4):
-            #    if (current == 'SP'):
-            #        current = 28
-            #    elif (current == 'FP'):
-            #        current = 29
-            #    elif (current == 'LR'):
-            #        current = 30
-            #    elif (current == 'XZR'):
-            #        current = 31
-            #    elif (current[0] == 'X' and ((len(current) == 2 and current[1].isdigit()) or (len(current) == 3 and current[1].isdigit() and current[2].isdigit()))):
-            #        len_current = len(current) # so I'm not going off the length of a value im actively modifying
-            #        current = int(current[1:len_current])
             
             label = current
             label_line = self.Find_Label(label)
             opcode = self.instr_def['B-Format'][instr]
+
             self.Make_B_Format(instr, opcode, label, label_line, branch_arg) # insert new object in instruction array with line serving as index
         return
 
@@ -705,7 +693,7 @@ class Instructions:
             immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "+", immediate
-            self.RFILE[Rd] = self.RFILE[Rn] + immediate
+            self.RFILE[Rd] = self.RFILE[Rn] + immediate	if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
@@ -715,7 +703,7 @@ class Instructions:
             immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "+", immediate
-            self.RFILE[Rd] = self.RFILE[Rn] + immediate
+            self.RFILE[Rd] = self.RFILE[Rn] + immediate	if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.set_flags(self.RFILE[Rd])
             print "Flags set by intruction:", self.flags
@@ -727,7 +715,7 @@ class Instructions:
             immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "-",	immediate
-            self.RFILE[Rd] = self.RFILE[Rn] + immediate
+            self.RFILE[Rd] = self.RFILE[Rn] + immediate	if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
@@ -737,7 +725,7 @@ class Instructions:
             immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "-",    immediate
-            self.RFILE[Rd] = self.RFILE[Rn] + immediate
+            self.RFILE[Rd] = self.RFILE[Rn] + immediate	if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.set_flags(self.RFILE[Rd])
             print "Flags set by intruction:", self.flags
@@ -749,7 +737,7 @@ class Instructions:
             immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "&",    immediate
-            self.RFILE[Rd] = self.RFILE[Rn] & immediate
+            self.RFILE[Rd] = self.RFILE[Rn] & immediate	if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
@@ -759,7 +747,7 @@ class Instructions:
             immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "|",    immediate
-            self.RFILE[Rd] = self.RFILE[Rn] | immediate
+            self.RFILE[Rd] = self.RFILE[Rn] | immediate if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
@@ -769,7 +757,7 @@ class Instructions:
             immediate = interpreted_instr['imm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "^",    immediate
-            self.RFILE[Rd] = self.RFILE[Rn] ^ immediate
+            self.RFILE[Rd] = self.RFILE[Rn] ^ immediate if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
@@ -798,11 +786,23 @@ class Instructions:
         elif (instr_name == 'BL'):
             label = interpreted_instr['label']
 	    label_line = interpreted_instr['label_line']
+            arg = interpreted_instr['branch_arg']
             print "Performing a branch and link instruction"
             print "Value of link register before execution:", self.RFILE[30] 
-            self.RFILE[30] = self.current_line
-            print "Jumping to label:", label
-            self.current_line = label_line
+            if (arg != ""):
+                print "Branching with condition:", arg
+                if (self.test_conditions()):
+                    print "Branch condition met."
+                    print "Jumping to label:", label
+                    self.RFILE[30] = self.current_line
+                    self.current_line = label_line
+                else:
+                    print "Branch Condition not met"
+                    self.current_line += 1
+            else:
+                print "Jumping to label:", label
+                self.RFILE[30] = self.current_line
+                self.current_line = label_line
             print "Value of link register after execution:", self.RFILE[30]
             print "Now on line:", self.current_line
             if (self.current_line < len(self.program)):
@@ -818,7 +818,7 @@ class Instructions:
             mem_location = self.RFILE[Rn] + address
             value = self.load_helper(mem_location, "full")
             print "Value:", value, "loaded into register: " + self.reg_to_string(Rt)
-            self.RFILE[Rt] = value
+            self.RFILE[Rt] = value if Rt != 31 else 0
             self.current_line += 1
             
         elif (instr_name == 'STUR'):
@@ -837,7 +837,7 @@ class Instructions:
             mem_location = self.RFILE[Rn] + address
             value = self.load_helper(mem_location, "word")
             print "Value:", value, "loaded into register: " + self.reg_to_string(Rt)
-            self.RFILE[Rt] = value
+            self.RFILE[Rt] = value if Rt != 31 else 0
             self.current_line += 1
 
         elif (instr_name == 'STURW'):
@@ -856,7 +856,7 @@ class Instructions:
             mem_location = self.RFILE[Rn] + address
             value = self.load_helper(mem_location, "half_word")
             print "Value:", value, "loaded into register: " + self.reg_to_string(Rt)
-            self.RFILE[Rt] = value
+            self.RFILE[Rt] = value if Rt != 31 else 0
             self.current_line += 1
 
         elif (instr_name == 'STURH'):
@@ -875,7 +875,7 @@ class Instructions:
             mem_location = self.RFILE[Rn] + address
             value = self.load_helper(mem_location, "byte")
             print "Value:", value, "loaded into register: " + self.reg_to_string(Rt)
-            self.RFILE[Rt] = value
+            self.RFILE[Rt] = value if Rt != 31 else 0
             self.current_line += 1
 
         elif (instr_name == 'STURB'):
@@ -906,7 +906,7 @@ class Instructions:
             Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "+", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] + self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] + self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
@@ -916,7 +916,7 @@ class Instructions:
             Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "+", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] + self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] + self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.set_flags(self.RFILE[Rd])
             print "Flags set by intruction:", self.flags
@@ -928,7 +928,7 @@ class Instructions:
             Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "-", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] - self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] - self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
@@ -938,7 +938,7 @@ class Instructions:
             Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "-", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] - self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] - self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.set_flags(self.RFILE[Rd])
             print "Flags set by intruction:", self.flags
@@ -950,7 +950,7 @@ class Instructions:
             Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "&", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] & self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] & self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
@@ -960,7 +960,7 @@ class Instructions:
             Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "&", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] & self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] & self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.set_flags(self.RFILE[Rd])
             print "Flags set by intruction:", self.flags
@@ -972,7 +972,7 @@ class Instructions:
             Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "|", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] | self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] | self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
@@ -982,7 +982,7 @@ class Instructions:
             Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "^", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] ^ self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] ^ self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
@@ -992,7 +992,7 @@ class Instructions:
             Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], ">>", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] >> self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] >> self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
@@ -1002,7 +1002,7 @@ class Instructions:
             Rm = interpreted_instr['Rm']
             print "Value of Write Register before execution:", self.RFILE[Rd]
             print "Evaluating interpreted expression:", self.RFILE[Rn], "<<", self.RFILE[Rm]
-            self.RFILE[Rd] = self.RFILE[Rn] << self.RFILE[Rm]
+            self.RFILE[Rd] = self.RFILE[Rn] << self.RFILE[Rm] if Rd != 31 else 0
             print "Value of Write Register after execution:", self.RFILE[Rd]
             self.current_line += 1
 
@@ -1040,6 +1040,12 @@ class Instructions:
         else:
             return 'END'
 
+    ##################################################################################
+    # Function: load_helper
+    # Parameters: the index in memory to load from, and the amount to load
+    # Description: This function build a 64 bit binary string then correctly casts
+    #              the binary string into an int
+    ##################################################################################
     def load_helper(self, index, amount):
         binary_sum = ""
         size = 0
@@ -1059,7 +1065,6 @@ class Instructions:
         while (index < end_index):
             bin_value = self.MEM[index]
             binary_sum = bin_value + binary_sum
-            print binary_sum
             index += 1
 
         if (binary_sum[0] == '1'): # negative number
@@ -1067,57 +1072,49 @@ class Instructions:
         else:
             return int(binary_sum, 2)
 
-        
+
+    ##################################################################################
+    # Function: store_helper
+    # Parameters: the value to be loaded into memory, the index in memory, the amount
+    #             needed to represent the value within memory
+    # Description: This function first turns the value into a binary string then
+    #              splices the string into eight parts ands stores them in consecutive
+    #              memory locations.
+    ##################################################################################
     def store_helper(self, value, index, amount):
         int_value = int(value)
         bin_value = binary_repr(int_value, 64)
 
         if (amount == "byte" or amount == "half_word" or amount == "word" or amount == "full"):
 
-            digits_to_eight = int(bin_value[56:64], 2)
-            print "Storing " + str(digits_to_eight) + " in index: " + str(index) + ", and storing remainder in next index."
-            self.MEM[index] = bin_value[56:64]
+            self.MEM[index] = bin_value[0:8]
             index += 1
 
             if (amount == "half_word" or amount == "word" or amount == "full"):
 
-                digits_to_sixteen = int(bin_value[48:56], 2)
-                print "Storing " + str(digits_to_sixteen) + " in index: " + str(index) + ", and storing remainder in next index."
-                self.MEM[index] = bin_value[48:56]
+                self.MEM[index] = bin_value[8:16]
                 index += 1
 
                 if (amount == "word" or amount == "full"):
 
-                    digits_to_twenty_four = int(bin_value[40:48], 2)
-                    print "Storing " + str(digits_to_twenty_four) + " in index: " + str(index) + ", and storing remainder in next index."
-                    self.MEM[index] = bin_value[40:48]
+                    self.MEM[index] = bin_value[16:24]
                     index += 1
                     
-                    digits_to_thirty_two = int(bin_value[32:40], 2)
-                    print "Storing " + str(digits_to_thirty_two) + " in index: " + str(index) + ", and storing remainder in next index."
-                    self.MEM[index] = bin_value[32:40]
+                    self.MEM[index] = bin_value[24:32]
                     index += 1
 
                     if (amount == "full"):
 
-                        digits_to_fourty = int(bin_value[24:32], 2)
-                        print "Storing " + str(digits_to_fourty) + " in index: " + str(index) + ", and storing remainder in next index."
-                        self.MEM[index] = bin_value[24:32]
+                        self.MEM[index] = bin_value[32:40]
                         index += 1
 
-                        digits_to_fourty_eight = int(bin_value[16:24], 2)
-                        print "Storing " + str(digits_to_fourty_eight) + " in index: " + str(index) + ", and storing remainder in next index."
-                        self.MEM[index] = bin_value[16:24]
+                        self.MEM[index] = bin_value[40:48]
                         index += 1
 
-                        digits_to_fifty_six = int(bin_value[8:16], 2)
-                        print "Storing " + str(digits_to_fifty_six) + " in index: " + str(index) + ", and storing remainder in next index."
-                        self.MEM[index] = bin_value[8:16]
+                        self.MEM[index] = bin_value[48:56]
                         index += 1
 
-                        digits_to_sixty_four = int(bin_value[0:8], 2)
-                        print "Storing " + str(digits_to_sixty_four) + " in index: " + str(index) + ", and storing remainder in next index."
-                        self.MEM[index] = bin_value[0:8]
+                        self.MEM[index] = bin_value[56:64]
                         index += 1
         
     ##################################################################################
@@ -1224,9 +1221,12 @@ class Instructions:
 
         elif (name in self.instr_def['R-Format']):
             Rd = self.reg_to_string(current_instr['interpreted']['Rd'])
-            Rn = self.reg_to_string(current_instr['interpreted']['Rn'])
-	    Rm = self.reg_to_string(current_instr['interpreted']['Rm'])
-            output = name + " " + Rd + ", " + Rn + ", " + Rm
+            if (name != "BR"):
+                Rn = self.reg_to_string(current_instr['interpreted']['Rn'])
+	        Rm = self.reg_to_string(current_instr['interpreted']['Rm'])
+                output = name + " " + Rd + ", " + Rn + ", " + Rm
+            else:
+                output = name + " " + Rd 
 
         elif (name in self.instr_def['CB-Format']):
             label = current_instr['interpreted']['label']
@@ -1286,15 +1286,21 @@ class Instructions:
             Rd = current_instr['interpreted']['Rd']
             str_rd = self.reg_to_string(Rd)
             Rn = current_instr['interpreted']['Rn']
-            str_rn = self.reg_to_string(Rn)
-            Rm = current_instr['interpreted']['Rm']
-            str_rm = self.reg_to_string(Rm)
-            print "Instruction: ", name, " " + str_rd, ", " + str_rn, ", " + str_rm
-            print "Instruction OpCode: ", current_instr['interpreted']['opcode']
-            print "Write Register: " + str_rd, " ## Value in Write Register: ", self.RFILE[Rd]
-            print "Register 1: X" + str_rn, " ## Value in Register 1: ", self.RFILE[Rn]
-            print "Register 2: X" + str_rm, " ## Value in Register 2: ", self.RFILE[Rm]
+            if (Rn != -1):
+                str_rn = self.reg_to_string(Rn)
+                Rm = current_instr['interpreted']['Rm']
+                str_rm = self.reg_to_string(Rm)
+                print "Instruction: ", name, " " + str_rd, ", " + str_rn, ", " + str_rm
+                print "Instruction OpCode: ", current_instr['interpreted']['opcode']
+                print "Write Register: " + str_rd, " ## Value in Write Register: ", self.RFILE[Rd]
+                print "Register 1: X" + str_rn, " ## Value in Register 1: ", self.RFILE[Rn]
+                print "Register 2: X" + str_rm, " ## Value in Register 2: ", self.RFILE[Rm]
+            else:
+                print "Instruction: ", name, " " + str_rd
+                print "Instruction OpCode: ", current_instr['interpreted']['opcode']
+                print "Write Register: " + str_rd, " ## Value in Write Register: ", self.RFILE[Rd]
 
+                
         elif (name in self.instr_def['CB-Format']):
             label = current_instr['interpreted']['label']
             label_line = current_instr['interpreted']['label_line']
@@ -1338,43 +1344,28 @@ def input_memory():
             int_value = int(value)
             bin_value = binary_repr(int_value, 64)
 
-            digits_to_eight = int(bin_value[56:64], 2)
-            print "Storing " + str(digits_to_eight) + " in index: " + str(mem_idx) + ", and storing remainder in next index."
+            print "Splitting value into indeces:", mem_idx, "-", mem_idx + 8
             memory.append(bin_value[56:64])
             mem_idx += 1
             
-            digits_to_sixteen = int(bin_value[48:56], 2)
-	    print "Storing " + str(digits_to_eight) + " in index: " + str(mem_idx) + ", and storing remainder in next index."
             memory.append(bin_value[48:56])
             mem_idx += 1
             
-            digits_to_twenty_four = int(bin_value[40:48], 2)
-            print "Storing " + str(digits_to_twenty_four) + " in index: " + str(mem_idx) + ", and storing remainder in next index."
             memory.append(bin_value[40:48])
             mem_idx += 1
             
-            digits_to_thirty_two = int(bin_value[32:40], 2)
-            print "Storing " + str(digits_to_thirty_two) + " in index: " + str(mem_idx) + ", and storing remainder in next index."
             memory.append(bin_value[32:40])
             mem_idx += 1
             
-            digits_to_fourty = int(bin_value[24:32], 2)
-            print "Storing " + str(digits_to_fourty) + " in index: " + str(mem_idx) + ", and storing remainder in next index."
             memory.append(bin_value[24:32])
             mem_idx += 1
             
-            digits_to_fourty_eight = int(bin_value[16:24], 2)
-            print "Storing " + str(digits_to_fourty_eight) + " in index: " + str(mem_idx) + ", and storing remainder in next index."
             memory.append(bin_value[16:24])
             mem_idx += 1
             
-            digits_to_fifty_six = int(bin_value[8:16], 2)
-            print "Storing " + str(digits_to_fifty_six) + " in index: " + str(mem_idx) + ", and storing remainder in next index."
             memory.append(bin_value[8:16])
             mem_idx += 1
             
-            digits_to_sixty_four = int(bin_value[0:8], 2)
-            print "Storing " + str(digits_to_sixty_four) + " in index: " + str(mem_idx) + ", and storing remainder in next index."
             memory.append(bin_value[0:8])
             mem_idx += 1
             
@@ -1397,7 +1388,6 @@ def digit_test(value):
     return True
 
 def main():
-    print binary_repr(3 + 4, 64)
     if (len(sys.argv) < 2):
         _input = raw_input("Please enter the name of the file containing the LEGv8 program: ")
         fileName = _input
