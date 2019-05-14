@@ -1345,28 +1345,28 @@ def input_memory():
             bin_value = binary_repr(int_value, 64)
 
             print "Splitting value into indeces:", mem_idx, "-", mem_idx + 8
-            memory.append(bin_value[56:64])
-            mem_idx += 1
-            
-            memory.append(bin_value[48:56])
-            mem_idx += 1
-            
-            memory.append(bin_value[40:48])
-            mem_idx += 1
-            
-            memory.append(bin_value[32:40])
-            mem_idx += 1
-            
-            memory.append(bin_value[24:32])
-            mem_idx += 1
-            
-            memory.append(bin_value[16:24])
+            memory.append(bin_value[0:8])
             mem_idx += 1
             
             memory.append(bin_value[8:16])
             mem_idx += 1
             
-            memory.append(bin_value[0:8])
+            memory.append(bin_value[16:24])
+            mem_idx += 1
+            
+            memory.append(bin_value[24:32])
+            mem_idx += 1
+            
+            memory.append(bin_value[32:40])
+            mem_idx += 1
+            
+            memory.append(bin_value[40:48])
+            mem_idx += 1
+            
+            memory.append(bin_value[48:56])
+            mem_idx += 1
+            
+            memory.append(bin_value[56:64])
             mem_idx += 1
             
         elif (value != 'd' and value != 'done'):
