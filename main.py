@@ -11,19 +11,6 @@ from numpy import binary_repr
 
 
 
-
-###################################TO DO############################################
-#          - parse and input CB-Format
-#          - take in user-specified memory as input file
-#          - continue to implement executions of all instructions
-#          - handle overflow errors as interpreted events
-#          - write logic to print specific registers
-#          - change output forms from decimal to binary/hex, or back to decimal from binary to hex
-#                   + we dont need to write a binary to hex functions, we can do binary -> decimal -> hex
-
-
-
-
 ##################################################################################
 # Class: Control                                                                                        
 # Description: This class is used as an interface to the Instructions class
@@ -243,6 +230,9 @@ class Instructions:
         i = 0
         while(lineCount < len(lines)):
             line = lines[lineCount]
+            i = 0
+            while (i < len(line) and line[i] == " "):
+                i += 1
             while(i < len(line) and line[i] != " " and line[i] != ":" and line[i] != "."):
                 current += line[i]
                 i += 1
@@ -362,8 +352,8 @@ class Instructions:
             while(i < len(line) and line[i] != ","):
                 register += line[i]
                 i += 1
-                if ("ZR" in register):
-                    register = 31
+            if ("ZR" in register):
+                register = 31
         else:
             print "Error: malformed instruction =>", line
             sys.exit()
